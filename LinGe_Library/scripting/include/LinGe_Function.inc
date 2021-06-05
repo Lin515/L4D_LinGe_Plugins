@@ -1,3 +1,5 @@
+// 一些常用函数
+
 // 执行一次带有FCVAR_CHEAT标识的指令
 stock void BypassAndExecuteCommand(int client, const char[] cmd, const char[] params)
 {
