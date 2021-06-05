@@ -14,6 +14,7 @@ public Plugin myinfo = {
 };
 
 ConVar cv_svmaxplayers;
+ConVar cv_autoGive;
 ConVar cv_autoMultiple;
 ConVar cv_allowsset;
 ConVar cv_maxs;
@@ -24,7 +25,8 @@ ConVar cv_autokickbot;
 //Handle timer_autoKickBot;
 bool g_isL4DHRunning = false; // left4dhooks是否正常运行
 
-ArrayList supply; // 哪些启用多倍物资补给
+ArrayList g_autoGive; // 自动给予哪些
+ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allowAutoMultiple = false; // 当前是否可以自动更改物资倍数
 bool g_isFirstSet = false; // 是否已在开局设置过一次物资多倍补给
@@ -52,6 +54,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_kb", Cmd_kb, ADMFLAG_KICK, "踢出所有电脑BOT");
 	RegAdminCmd("sm_sset", Cmd_sset, ADMFLAG_ROOT, "设置服务器最大人数");
 	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "开关自动多倍物资");
+	RegServerCmd("l4d2_multislots_auto_give_supply", Cmd_AutoGiveSuppy, "设置自动给予生还者哪些物品");
 
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");
@@ -63,6 +66,7 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_afk", Cmd_afk, "强制闲置");
 
 	cv_svmaxplayers = FindConVar("sv_maxplayers");
+	cv_autoGive = CreateConVar("l4d2_multislots_auto_give", "2", "自动给予新出生的生还者武器与物品 0:不给予 1:任何时候都给予 2:只在离开了安全区以后给予（若无left4dhooks则效果与1相同）", _, true, 0.0, true, 2.0);
 	cv_autoMultiple = CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数", _, true, 0.0, true, 1.0);
 	cv_allowsset = 	CreateConVar("l4d2_multislots_enabled_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", _, true, 0.0, true, 1.0);
 	cv_maxs = 		CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", _, true, 1.0, true, 32.0);
@@ -79,8 +83,49 @@ public void OnPluginStart()
 	HookEvent("round_end", Event_round_end, EventHookMode_Pre);
 	HookEvent("player_team", Event_player_team, EventHookMode_Post);
 
-	supply = CreateArray(40);
+	g_supply = CreateArray(40);
+	g_autoGive = CreateArray(40);
 	g_isL4DHRunning = IsPluginRunning("left4dhooks.smx");
+}
+
+public Action Cmd_AutoGiveSuppy(int args)
+{
+	if (args < 1)
+	{
+		// 列出当前自动给予的物品
+		int len = g_autoGive.Length;
+		if (0 == len)
+			PrintToServer("未设置自动给予的物品");
+		else
+		{
+			char buffer[40];
+			for (int i=0; i<len; i++)
+			{
+				g_autoGive.GetString(i, buffer, sizeof(buffer));
+				PrintToServer("自动给予物品 %d : %s", i, buffer);
+			}
+		}
+	}
+	else
+	{
+		char buffer[40];
+		GetCmdArg(1, buffer, sizeof(buffer));
+
+		if (strcmp(buffer, "clear") == 0)
+		{
+			if (1 == args)
+				g_autoGive.Clear();
+		}
+		else
+		{
+			for (int i=1; i<=args; i++)
+			{
+				GetCmdArg(i, buffer, sizeof(buffer));
+				if (-1 == g_autoGive.FindString(buffer))
+					g_autoGive.PushString(buffer);
+			}
+		}
+	}
 }
 
 public Action Cmd_forceaddbot(int client, int agrs)
@@ -204,7 +249,7 @@ public Action Cmd_mmn(int client, int args)
 		if (strcmp(buffer, "clear") == 0)
 		{
 			if (1 == args)
-				supply.Clear();
+				g_supply.Clear();
 		}
 //		else if (strcmp(buffer, "set") == 0) // 设置自定义倍数
 //		{
@@ -235,8 +280,8 @@ public Action Cmd_mmn(int client, int args)
 			for (int i=1; i<=args; i++)
 			{
 				GetCmdArg(i, buffer, sizeof(buffer));
-				if (-1 == supply.FindString(buffer))
-					supply.PushString(buffer);
+				if (-1 == g_supply.FindString(buffer))
+					g_supply.PushString(buffer);
 			}
 		}
 	}
@@ -392,7 +437,7 @@ void SetMultiple(int num=-1)
 
 	if (num != g_nowMultiple)
 	{
-		int len = supply.Length;
+		int len = g_supply.Length;
 		char buffer[40];
 		char numstr[10];
 		IntToString(num, numstr, sizeof(numstr));
@@ -405,7 +450,7 @@ void SetMultiple(int num=-1)
 		{
 			for (int i=0; i<len; i++)
 			{
-				supply.GetString(i, buffer, sizeof(buffer));
+				g_supply.GetString(i, buffer, sizeof(buffer));
 				SetKeyValueByClassname(buffer, "count", numstr);
 			}
 		}
@@ -498,6 +543,22 @@ int AddBot(bool force=false)
 	ChangeClientTeam(survivorbot, 2);
 	DispatchKeyValue(survivorbot, "classname", "SurvivorBot");
 	DispatchSpawn(survivorbot);
+
+	// 给予物品
+	if (cv_autoGive.IntValue > 0)
+	{
+		if (g_isL4DHRunning && cv_autoGive.IntValue == 2)
+		{
+			if (L4D_HasAnySurvivorLeftSafeArea())
+			{
+				GivePlayerSupply(survivorbot);
+			}
+		}
+		else
+		{
+			GivePlayerSupply(survivorbot);
+		}
+	}
 	// 传送BOT
 	for (int i=1; i<=MaxClients; i++)
 	{
@@ -516,6 +577,19 @@ int AddBot(bool force=false)
 	}
 	KickClient(survivorbot, "Cmd_addbot...");
 	return 0;
+}
+
+void GivePlayerSupply(int client)
+{
+	if (!IsValidClient(client))
+		return;
+	int len = g_autoGive.Length;
+	char buffer[40];
+	for (int i=0; i<len; i++)
+	{
+		g_autoGive.GetString(i, buffer, sizeof(buffer));
+		BypassAndExecuteCommand(client, "give", buffer);
+	}
 }
 
 // 当前在线的玩家数量（生还+旁观）
