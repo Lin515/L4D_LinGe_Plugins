@@ -1,3 +1,12 @@
+// 执行一次带有FCVAR_CHEAT标识的指令
+stock void BypassAndExecuteCommand(int client, const char[] cmd, const char[] params)
+{
+	int flags = GetCommandFlags(cmd);
+	SetCommandFlags(cmd, flags & ~FCVAR_CHEAT);
+	FakeClientCommand(client, "%s %s", cmd, params);
+	SetCommandFlags(cmd, flags);
+}
+
 // 设置某类下所有已生成实体的KeyValue
 stock int SetKeyValueByClassname(const char[] className, const char[] key, const char[] value)
 {
