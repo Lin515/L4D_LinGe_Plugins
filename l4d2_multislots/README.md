@@ -15,8 +15,8 @@
 - **!away !s !spec !spectate**  
   进入旁观。
 - **!afk**  
-  强制闲置。
-- **!ab !addbot** 
+  快速闲置。
+- **!ab !addbot**  
   手动增加一个BOT。仅管理员可用。
 - **!kb**  
   踢出所有BOT，接管闲置玩家的BOT不会被踢出。仅管理员可用。
@@ -24,14 +24,16 @@
   设置服务器最大人数。仅管理员可用。
 - **!mmn**  
   查看当前是否开启自动多倍物资补给。  
-  - **!mmn on** 打开自动多倍物资。
-  - **!mmn off** 关闭自动多倍物资。
-  - **!mmn xxx** 将xxx加入到多倍物资列表中。  
-    若未设置哪些物资多倍，则默认自动多倍医疗包。  
+  - **!mmn on**  
+    打开自动多倍物资。
+  - **!mmn off**  
+    关闭自动多倍物资。
+  - **!mmn xxx**  
+    将xxx加入到多倍物资列表。 若未设置哪些物资多倍，则默认自动多倍医疗包。  
     推荐在cfg文件中使用sm_mmn设置，例如设置医疗包：sm_mmn weapon_first_aid_kit_spawn。  
     sm_mmn clear可清除当前物资设置。
-- **l4d2_multislots_auto_give_supply**  
-  这是一条服务器命令，用来设置自动给予新加入的BOT哪些物品。  
+- **l4d2_multislots_auto_give_supply xxx**  
+  这是一条服务器命令，将xxx加入到自动给予物资列表。  
   推荐在cfg文件中设置，例如设置自动给予马格南：l4d2_multislots_auto_give_supply pistol_magnum。  
   l4d2_multislots_auto_give_supply clear 可清除当前物资设置。
 
