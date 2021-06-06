@@ -1,18 +1,24 @@
+// 多人控制 主要是自用 代码参考了望夜与豆瓣插件包中的多人插件
+
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Function>
-#undef REQUIRE_PLUGIN
 #include <left4dhooks>
-#define REQUIRE_PLUGIN
 
 public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "1.2",
+	version = "2.0",
 	url = "https://github.com/LinGe515"
 };
- 
+
+// SDKCall Function
+Handle h_RoundRespawn;
+Handle h_SetHumanSpec;
+Handle h_TakeOverBot;
+
+ConVar cv_l4dSurvivorLimit;
 ConVar cv_svmaxplayers;
 ConVar cv_autoGive;
 ConVar cv_autoMultiple;
@@ -22,8 +28,6 @@ ConVar cv_botlimit;
 ConVar cv_autojoin;
 ConVar cv_onlySafeAddBot;
 ConVar cv_autokickbot;
-
-bool g_isL4DHRunning = false; // left4dhooks是否正常运行
 
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
@@ -42,19 +46,20 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "本插件只支持 Left 4 Dead 2 .");
 		return APLRes_SilentFailure;
 	}
-	__pl_l4dh_SetNTVOptional();
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
+	LoadSDKCallFunction();
+
 	RegAdminCmd("sm_forceaddbot", Cmd_forceaddbot, ADMFLAG_ROOT, "强制增加一个BOT，无视条件限制");
 	RegAdminCmd("sm_addbot", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");
 	RegAdminCmd("sm_ab", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");
 	RegAdminCmd("sm_kb", Cmd_kb, ADMFLAG_KICK, "踢出所有电脑BOT");
 	RegAdminCmd("sm_sset", Cmd_sset, ADMFLAG_ROOT, "设置服务器最大人数");
-	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "开关自动多倍物资");
-	RegServerCmd("l4d2_multislots_auto_give_supply", Cmd_AutoGiveSuppy, "设置自动给予生还者哪些物品");
+	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "自动多倍物资设置");
+	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
 
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");
@@ -63,21 +68,24 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_s", Cmd_away, "玩家进入旁观");
 	RegConsoleCmd("sm_spec", Cmd_away, "玩家进入旁观");
 	RegConsoleCmd("sm_spectate", Cmd_away, "玩家进入旁观");
-	RegConsoleCmd("sm_afk", Cmd_afk, "强制闲置");
+	RegConsoleCmd("sm_afk", Cmd_afk, "快速闲置");
 
+	cv_l4dSurvivorLimit = FindConVar("survivor_limit");
 	cv_svmaxplayers = FindConVar("sv_maxplayers");
-	cv_autoGive = CreateConVar("l4d2_multislots_auto_give", "2", "自动给予新出生的生还者武器与物品 0:不给予 1:任何时候都给予 2:只在离开了安全区以后给予（若无left4dhooks则效果与1相同）", _, true, 0.0, true, 2.0);
+	cv_autoGive = CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品", _, true, 0.0, true, 1.0);
 	cv_autoMultiple = CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数", _, true, 0.0, true, 1.0);
 	cv_allowsset = 	CreateConVar("l4d2_multislots_enabled_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", _, true, 0.0, true, 1.0);
 	cv_maxs = 		CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", _, true, 1.0, true, 32.0);
 	cv_botlimit = 	CreateConVar("l4d2_multislots_bot_limit", "4", "生还者人数不足多少时可以手动添加BOT", _, true, 0.0, true, 32.0);
 	cv_autojoin = 	CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", _, true, 0.0, true, 1.0);
-	cv_onlySafeAddBot = CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT（此功能依赖于left4dhooks，若无left4dhooks则开启了也是无效的）", _, true, 0.0, true, 1.0);
+	cv_onlySafeAddBot = CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", _, true, 0.0, true, 1.0);
 	cv_autokickbot = CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", _, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "l4d2_multislots");
 	cv_autoMultiple.AddChangeHook(AutoMultipleChanged);
+	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
+	cv_botlimit.AddChangeHook(SurvivorLimitChanged);
 
-	HookEvent("round_start_post_nav", Event_round_start, EventHookMode_PostNoCopy);
+	HookEvent("round_start", Event_round_start, EventHookMode_PostNoCopy);
 	HookEvent("map_transition", Event_round_end, EventHookMode_Pre);
 	HookEvent("finale_win", Event_round_end, EventHookMode_Pre);
 	HookEvent("round_end", Event_round_end, EventHookMode_Pre);
@@ -85,47 +93,6 @@ public void OnPluginStart()
 
 	g_supply = CreateArray(40);
 	g_autoGive = CreateArray(40);
-	g_isL4DHRunning = IsPluginRunning("left4dhooks.smx");
-}
-
-public Action Cmd_AutoGiveSuppy(int args)
-{
-	if (args < 1)
-	{
-		// 列出当前自动给予的物品
-		int len = g_autoGive.Length;
-		if (0 == len)
-			PrintToServer("未设置自动给予的物品");
-		else
-		{
-			char buffer[40];
-			for (int i=0; i<len; i++)
-			{
-				g_autoGive.GetString(i, buffer, sizeof(buffer));
-				PrintToServer("自动给予物品 %d : %s", i, buffer);
-			}
-		}
-	}
-	else
-	{
-		char buffer[40];
-		GetCmdArg(1, buffer, sizeof(buffer));
-
-		if (strcmp(buffer, "clear") == 0)
-		{
-			if (1 == args)
-				g_autoGive.Clear();
-		}
-		else
-		{
-			for (int i=1; i<=args; i++)
-			{
-				GetCmdArg(i, buffer, sizeof(buffer));
-				if (-1 == g_autoGive.FindString(buffer))
-					g_autoGive.PushString(buffer);
-			}
-		}
-	}
 }
 
 public Action Cmd_forceaddbot(int client, int agrs)
@@ -230,61 +197,118 @@ public Action Cmd_sset(int client, int args)
 	return Plugin_Handled;
 }
 
-
 public Action Cmd_mmn(int client, int args)
 {
-	if (args < 1)
+	char buffer[40];
+	if (0 == args)
 	{
-		// 查看多倍物资补给状态
-		if (cv_autoMultiple.IntValue == 1)
-			PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
+		if (0 == client)
+		{
+			int len = g_supply.Length;
+			if (0 == len)
+			{
+				PrintToServer("未设置自定义多倍的物资，将默认启用医疗包多倍");
+			}
+			else
+			{
+				for (int i=0; i<len; i++)
+				{
+					g_supply.GetString(i, buffer, sizeof(buffer));
+					PrintToServer("自动多倍物资 %d : %s", i, buffer);
+				}
+			}
+		}
 		else
-			PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
+		{
+			// 查看多倍物资补给状态
+			if (cv_autoMultiple.IntValue == 1)
+				PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
+			else
+				PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
+		}
 	}
-	else
+	else if (1 == args)
 	{
-		char buffer[40];
 		GetCmdArg(1, buffer, sizeof(buffer));
 
-		if (strcmp(buffer, "clear") == 0)
+		if (strcmp(buffer, "on") == 0)
 		{
-			if (1 == args)
-				g_supply.Clear();
-		}
-//		else if (strcmp(buffer, "set") == 0) // 设置自定义倍数
-//		{
-//			if (2 == args)
-//			{
-//				GetCmdArg(2, buffer, sizeof(buffer));
-//				SetMultiple(StringToInt(buffer));
-//			}
-//		}
-		else if (strcmp(buffer, "on") == 0)
-		{
-			if (1 == args)
-			{
-				cv_autoMultiple.SetInt(1);
-				PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
-			}
+			cv_autoMultiple.SetInt(1);
+			PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
 		}
 		else if (strcmp(buffer, "off") == 0)
 		{
-			if (1 == args)
+			cv_autoMultiple.SetInt(0);
+			PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
+		}
+		else if (strcmp(buffer, "clear") == 0 && 0 == client)
+		{
+			g_supply.Clear();
+		}
+		else if (0 == client) // 只允许在服务器端命令行设置物资 防止玩家指令误操作
+		{
+			if (-1 == g_supply.FindString(buffer))
+				g_supply.PushString(buffer);
+		}
+	}
+	else if (0 == client)
+		PrintToServer("参数过多，请一次只添加一种物资");
+}
+
+public Action Cmd_autogive(int client, int args)
+{
+	char buffer[40];
+	if (0 == args)
+	{
+		// 如果是在服务器执行，则列出当前自动给予物品列表
+		if (0 == client)
+		{
+			int len = g_autoGive.Length;
+			if (0 == len)
+				PrintToServer("未设置自动给予的物品");
+			else
 			{
-				cv_autoMultiple.SetInt(0);
-				PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
+				for (int i=0; i<len; i++)
+				{
+					g_autoGive.GetString(i, buffer, sizeof(buffer));
+					PrintToServer("出生自动给予物品 %d : %s", i, buffer);
+				}
 			}
 		}
 		else
 		{
-			for (int i=1; i<=args; i++)
-			{
-				GetCmdArg(i, buffer, sizeof(buffer));
-				if (-1 == g_supply.FindString(buffer))
-					g_supply.PushString(buffer);
-			}
+			if (cv_autoGive.IntValue == 1)
+				PrintToChatAll("\x04出生自动给予物品\x03 已开启");
+			else
+				PrintToChatAll("\x04出生自动给予物品\x03 已关闭");
 		}
 	}
+	else if (1 == args)
+	{
+		GetCmdArg(1, buffer, sizeof(buffer));
+
+		if (strcmp(buffer, "on") == 0)
+		{
+			cv_autoGive.SetInt(1);
+			PrintToChatAll("\x04出生自动给予物品\x03 已开启");
+		}
+		else if (strcmp(buffer, "off") == 0)
+		{
+			cv_autoGive.SetInt(0);
+			PrintToChatAll("\x04出生自动给予物品\x03 已关闭");
+		}
+		else if (strcmp(buffer, "clear") == 0 && 0 == client)
+		{
+			g_autoGive.Clear();
+		}
+		else if (0 == client) // 只允许在服务器端命令行设置物资 防止玩家指令误操作
+		{
+			if (-1 == g_autoGive.FindString(buffer))
+				g_autoGive.PushString(buffer);
+		}
+	}
+	else if (0 == client)
+		PrintToServer("参数过多，请一次只添加一种物资");
 }
 
 public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -293,6 +317,11 @@ public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char
 		SetMultiple();
 	else
 		SetMultiple(1);
+}
+
+public void SurvivorLimitChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	cv_l4dSurvivorLimit.SetInt(cv_botlimit.IntValue);
 }
 
 // 游戏中途离线 无需判断是不是BOT
@@ -369,7 +398,7 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 		return Plugin_Continue;
 
 	if (g_allowAutoMultiple && cv_autoMultiple.IntValue == 1)
-		SetMultiple();
+		CreateTimer(0.5, Timer_SetMultiple);
 
 	if (oldteam==0 && team!=2)
 	{
@@ -378,6 +407,11 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 	}
 	return Plugin_Continue;
 }
+public Action Timer_SetMultiple(Handle timer)
+{
+	SetMultiple();
+}
+
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
 	// 等待全部玩家已经载入完毕之后再加入
@@ -531,7 +565,7 @@ public Action Timer_Jointeam2(Handle timer, any client)
 // AddBot 返回0表示成功增加BOT 返回1表示当前不允许增加BOT 返回2表示无需增加BOT
 int AddBot(bool force=false)
 {
-	if (cv_onlySafeAddBot.IntValue == 1 && g_isL4DHRunning && !force)
+	if (cv_onlySafeAddBot.IntValue == 1 && !force)
 	{
 		if (L4D_HasAnySurvivorLeftSafeArea())
 			return -1;
@@ -543,37 +577,31 @@ int AddBot(bool force=false)
 	ChangeClientTeam(survivorbot, 2);
 	DispatchKeyValue(survivorbot, "classname", "SurvivorBot");
 	DispatchSpawn(survivorbot);
+	// 如果新BOT是死亡的则复活它
+	if (!IsAlive(survivorbot))
+		SDKCall(h_RoundRespawn, survivorbot);
 
-	// 给予物品
-	if (cv_autoGive.IntValue > 0)
-	{
-		if (g_isL4DHRunning && cv_autoGive.IntValue == 2)
-		{
-			if (L4D_HasAnySurvivorLeftSafeArea())
-			{
-				GivePlayerSupply(survivorbot);
-			}
-		}
-		else
-		{
-			GivePlayerSupply(survivorbot);
-		}
-	}
 	// 传送BOT
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientConnected(i) && IsClientInGame(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2 && !IsFakeClient(i))
+			if (GetClientTeam(i) == 2 && survivorbot!=i && IsAlive(i))
 			{
-				float vAngles1[3];
-				float vOrigin1[3];
-				GetClientAbsOrigin(i, vOrigin1);
-				GetClientAbsAngles(i, vAngles1);
-				TeleportEntity(survivorbot, vOrigin1, vAngles1, NULL_VECTOR);
+				float vOrigin[3] = 0.0;
+				float vAngles[3] = 0.0;
+				GetClientAbsOrigin(i, vOrigin);
+				GetClientAbsAngles(i, vAngles);
+				TeleportEntity(survivorbot, vOrigin, vAngles, NULL_VECTOR);
 				break;
 			}
 		}
+	}
+
+	// 给予物品
+	if (cv_autoGive.IntValue == 1 && L4D_HasAnySurvivorLeftSafeArea())
+	{
+		GivePlayerSupply(survivorbot);
 	}
 	KickClient(survivorbot, "Cmd_addbot...");
 	return 0;
@@ -605,4 +633,74 @@ int AllPlayers()
 		}
 	}
 	return numplayers;
+}
+
+//TakeOverBot(client, bool:completely)
+//{
+//	if (IsClientInGame(client))
+//	{
+//		if (GetClientTeam(client) == 2)
+//		{
+//			return 0;
+//		}
+//		if (IsFakeClient(client))
+//		{
+//			return 0;
+//		}
+//		new bot = FindBotToTakeOver();
+//		if (bot)
+//		{
+//			if (completely)
+//			{
+//				SDKCall(hSetHumanSpec, bot, client);
+//				SDKCall(hTakeOverBot, client, 1);
+//			}
+//			else
+//			{
+//				SDKCall(hSetHumanSpec, bot, client);
+//				SetEntProp(client, 0, "m_iObserverMode", 5, 4, 0);
+//			}
+//			return 0;
+//		}
+//		PrintHintText(client, "[提示] 目前没有存活的电脑接管.");
+//		return 0;
+//	}
+//	return 0;
+//}
+
+// 载入SDKCall Function
+void LoadSDKCallFunction()
+{
+	// CTerrorPlayer_RoundRespawn
+	StartPrepSDKCall(SDKCall_Player);
+	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x56\x8B\xF1\xE8\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x75", 16))
+	{
+		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer12RoundRespawnEv", 0))
+			SetFailState("未能找到签名 ： CTerrorPlayer_RoundRespawn");
+	}
+	h_RoundRespawn = EndPrepSDKCall();
+	if (h_RoundRespawn == null)
+		SetFailState("无法创建SDKCall ： CTerrorPlayer_RoundRespawn");
+
+	// SurvivorBot_SetHumanSpectator
+	StartPrepSDKCall(SDKCall_Player);
+	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x56\x8B\xF1\x83\xBE\x2A\x2A\x2A\x2A\x00\x7E\x07\x32\xC0\x5E\x5D\xC2\x04\x00\x8B\x0D", 24))
+	{
+		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer", 0))
+			SetFailState("未能找到签名 ： SurvivorBot_SetHumanSpectator");
+	}
+	h_SetHumanSpec = EndPrepSDKCall();
+	if (h_SetHumanSpec == null)
+		SetFailState("无法创建SDKCall ： SurvivorBot_SetHumanSpectator");
+
+	// CTerrorPlayer_TakeOverBot
+	StartPrepSDKCall(SDKCall_Player);
+	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x8D\x85", 23))
+	{
+		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer11TakeOverBotEb", 0))
+			SetFailState("未能找到签名 ： CTerrorPlayer_TakeOverBot");
+	}
+	h_TakeOverBot = EndPrepSDKCall();
+	if (h_TakeOverBot == null)
+		SetFailState("无法创建SDKCall ： CTerrorPlayer_TakeOverBot");
 }

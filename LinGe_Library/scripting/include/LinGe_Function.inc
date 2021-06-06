@@ -47,6 +47,15 @@ stock bool IsValidClient(int client)
 	return true;
 }
 
+// 从网络属性去判断client是否存活
+stock bool IsAlive(client)
+{
+	if (GetEntProp(client, Prop_Send, "m_lifeState"))
+		return false;
+	else
+		return true;
+}
+
 // 当前在线的全部真实玩家数
 stock int AllHumans()
 {
