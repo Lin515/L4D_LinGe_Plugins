@@ -23,12 +23,12 @@ enum BaseModeType {
 	OnScavenge
 };
 native BaseModeType GetBaseMode(); // 获取当前游戏的基础模式
-native int GetLobbySlots(); // 获取当前大厅的最大人数
+native bool IsOnVersus(); // 当前游戏模式是否是基于对抗
 
 #if !defined REQUIRE_PLUGIN
 public __pl_LinGe_Library_SetNTVOptional()
 {
 	MarkNativeAsOptional("GetBaseMode");
-	MarkNativeAsOptional("GetLobbySlots");
+	MarkNativeAsOptional("IsOnVersus");
 }
 #endif
