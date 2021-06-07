@@ -1,3 +1,5 @@
+// 本插件编写参考 SilverShot l4d_votemode.sp
+
 #include <sourcemod>
 #include <adminmenu>
 #include <LinGe_Function>

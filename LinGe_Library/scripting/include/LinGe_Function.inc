@@ -56,13 +56,42 @@ stock bool IsAlive(client)
 		return true;
 }
 
+// 从BOT生还者中获取其真实玩家client
+// 在执行该函数前你应先确认该client是有效生还者BOT
+// 若返回0，则说明该BOT没有真实玩家就位
+// 若返回>0，则说明有真实玩家就位，并且返回值为其真实玩家client
+stock int GetHumanClient(int client)
+{
+	return GetClientOfUserId(GetEntProp(client, Prop_Send, "m_humanSpectatorUserID"));
+}
+
+// 玩家是否处于闲置（旁观不算）
+stock bool IsClientIdle(int client)
+{
+	if (GetClientTeam(client) != 1)
+		return false;
+
+	for(int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientInGame(i) && IsFakeClient(i))
+		{
+			if (GetClientTeam(i) == 2)
+			{
+				if (GetHumanClient(i) == client)
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
 // 当前在线的全部真实玩家数
-stock int AllHumans()
+stock int GetHumans()
 {
 	int numplayers = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientConnected(i) && IsClientInGame(i))
+		if (IsClientInGame(i))
 		{
 			if(!IsFakeClient(i))
 				numplayers++;
@@ -71,39 +100,13 @@ stock int AllHumans()
 	return numplayers;
 }
 
-// 从闲置生还者中获取其真实玩家client
-// 若返回0，则说明该BOT没有真实玩家就位
-// 若返回<0，则说明该client无效或不是生还者或不是BOT
-// 若返回>0，则说明有真实玩家就位，并且返回值为其真实玩家client
-stock int GetHumanClient(int client)
-{
-	if (!IsValidClient(client))
-		return -1;
-	if (GetClientTeam(client) != 2)
-		return -2;
-	if (!IsFakeClient(client))
-		return -3;
-	return GetClientOfUserId(GetEntProp(client, Prop_Send, "m_humanSpectatorUserID"));
-}
-
-// 玩家是否处于闲置（旁观不算）
-stock bool IsClientIdle(int client)
-{
-	for(int i=1; i<=MaxClients; i++)
-	{
-		if (GetHumanClient(i) == client)
-			return true;
-	}
-	return false;
-}
-
 // 生还者总数
-stock int Survivors()
+stock int GetSurvivors()
 {
 	int numSurvivors = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsValidClient(i))
+		if (IsClientInGame(i))
 		{
 			if (GetClientTeam(i) == 2)
 				numSurvivors++;
@@ -113,14 +116,14 @@ stock int Survivors()
 }
 
 // 存活生还者数
-stock int AliveSurvivors()
+stock int GetAliveSurvivors()
 {
 	int numSurvivors = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsValidClient(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2 && IsPlayerAlive(i))
+			if (GetClientTeam(i) == 2 && IsAlive(i))
 				numSurvivors++;
 		}
 	}
@@ -128,55 +131,70 @@ stock int AliveSurvivors()
 }
 
 // BOT生还数(不含闲置)
-stock int BotSurvivors()
+stock int GetBotSurvivors()
 {
 	int numBots = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (GetHumanClient(i) == 0)
-			numBots++;
+		if (IsClientInGame(i) && IsFakeClient(i))
+		{
+			if (GetClientTeam(i) == 2)
+			{
+				if (GetHumanClient(i) == 0)
+					numBots++;
+			}
+		}
 	}
 	return numBots;
 }
 
 // 存活BOT数(不含闲置)
-stock int AliveBotSurvivors()
+stock int GetAliveBotSurvivors()
 {
 	int AnumBots = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (GetHumanClient(i) == 0)
+		if (IsClientInGame(i) && IsFakeClient(i))
 		{
-			if (IsPlayerAlive(i))
-				AnumBots++;
+			if (GetClientTeam(i) == 2)
+			{
+				if (GetHumanClient(i) == 0 && IsAlive(i))
+					AnumBots++;
+			}
 		}
 	}
 	return AnumBots;
 }
 
 // 闲置数
-stock int Idle()
+stock int GetIdleSurvivors()
 {
 	int numIdle = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (GetHumanClient(i) > 0)
-			numIdle++;
+		if (IsClientInGame(i) && IsFakeClient(i))
+		{
+			if (GetClientTeam(i) == 2)
+			{
+				if (GetHumanClient(i) > 0)
+					numIdle++;
+			}
+		}
 	}
 	return numIdle;
 }
 
 // 真实旁观数（不含闲置）
-stock int Spectator()
+stock int GetSpectators()
 {
 	int numaways = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsValidClient(i))
+		if (IsClientInGame(i) && !IsFakeClient(i)) // 不知道有没有出现BOT在旁观的可能，总之加了这个判断不会错
 		{
 			if (GetClientTeam(i) == 1)
 				numaways++;
 		}
 	}
-	return numaways-Idle();
+	return numaways-GetIdleSurvivors();
 }

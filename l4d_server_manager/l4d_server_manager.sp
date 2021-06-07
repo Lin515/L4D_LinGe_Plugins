@@ -1,6 +1,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Function>
+#include <left4dhooks>
 
 // 这个插件主要是自用 就懒得说太多具体作用了
 public Plugin myinfo = {
@@ -12,6 +13,7 @@ public Plugin myinfo = {
 };
 
 ConVar cv_allowLobby;
+ConVar cv_hostingLobby;
 ConVar cv_allowBotGame;
 ConVar cv_autoLobby;
 ConVar cv_autoHibernate;
@@ -30,10 +32,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
+	cv_hostingLobby = FindConVar("sv_hosting_lobby");
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 
-	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理sv_allow_lobby_connect_only参数，当有人连接时设置为0，服务器无人时设置为1。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "服务器无人时自动设置sb_all_bot_game为0，以让服务器可自动休眠。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
+	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
+	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "服务器无人时自动休眠", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 
 	AutoExecConfig(true, "l4d_server_manager");
 }
@@ -49,27 +52,30 @@ public void OnMapStart()
 
 public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 {
-	if (cv_autoLobby.IntValue == 0)
-		return true;
-	if (cv_allowLobby.IntValue == 0)
-		return true;
-	cv_allowLobby.SetInt(0);
+	if (cv_autoLobby.IntValue == 1)
+	{
+		if (cv_allowLobby.IntValue == 1)
+			cv_allowLobby.SetInt(0);
+		if (cv_hostingLobby.IntValue == 1)
+			L4D_LobbyUnreserve();
+	}
 	return true;
 }
 
 public void OnClientDisconnect_Post(int client)
 {
-	int humans = AllHumans();
-
-	if (cv_autoLobby.IntValue == 1 && 0 == humans)
+	if (GetHumans() == 0)
 	{
-		if (cv_allowLobby.IntValue == 0)
-			cv_allowLobby.SetInt(1);
-	}
+		if (cv_autoLobby.IntValue == 1)
+		{
+			if (cv_allowLobby.IntValue == 0)
+				cv_allowLobby.SetInt(1);
+		}
 
-	if (cv_autoHibernate.IntValue == 1 && 0 == humans)
-	{
-		if (cv_allowBotGame.IntValue == 1)
-			cv_allowBotGame.SetInt(0);
+		if (cv_autoHibernate.IntValue == 1)
+		{
+			if (cv_allowBotGame.IntValue == 1)
+				cv_allowBotGame.SetInt(0);
+		}
 	}
 }
