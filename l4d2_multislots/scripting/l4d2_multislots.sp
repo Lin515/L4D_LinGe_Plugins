@@ -31,12 +31,12 @@ ConVar cv_autokickbot;
 
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
+int g_maxplayers = -1;
 int g_nowMultiple = 1; // 当前物资倍数
-bool g_allowAutoMultiple = false; // 当前是否可以自动更改物资倍数
+bool g_allPlayerLoaded = false; // 开局检测所有玩家是否已经载入完毕
 bool g_isFirstSet = false; // 是否已在开局设置过一次物资多倍补给
 
 bool g_noAutoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
-bool g_isRoundStart = false; // 回合已经开始
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -81,6 +81,7 @@ public void OnPluginStart()
 	cv_onlySafeAddBot = CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", _, true, 0.0, true, 1.0);
 	cv_autokickbot = CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", _, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "l4d2_multislots");
+//	cv_l4dSurvivorLimit.SetBounds();
 	cv_autoMultiple.AddChangeHook(AutoMultipleChanged);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_botlimit.AddChangeHook(SurvivorLimitChanged);
@@ -324,19 +325,21 @@ public void SurvivorLimitChanged(ConVar convar, const char[] oldValue, const cha
 	cv_l4dSurvivorLimit.SetInt(cv_botlimit.IntValue);
 }
 
+public void OnConfigsExecuted()
+{
+	if (-1 == g_maxplayers)
+		g_maxplayers = cv_maxs.IntValue;
+	if (cv_allowsset.IntValue==1 && cv_svmaxplayers!=null)
+	{
+		cv_svmaxplayers.SetInt(g_maxplayers);
+	}
+}
+
 // 游戏中途离线 无需判断是不是BOT
 public void OnClientDisconnect(int client)
 {
-	if (g_isRoundStart)
+	if (g_allPlayerLoaded)
 		g_noAutoJoin[client] = false;
-}
-
-public void OnConfigsExecuted()
-{
-	if (cv_allowsset.IntValue==1 && cv_svmaxplayers!=null)
-	{
-		cv_svmaxplayers.SetInt(cv_maxs.IntValue);
-	}
 }
 
 // 只有当第一个玩家进入游戏以后，物资实体才会生成，此时设置物资多倍才有效
@@ -354,23 +357,22 @@ public Action Timer_FirstSetMultipe(Handle timer)
 {
 	int nowMultiple = g_nowMultiple;
 	g_nowMultiple = 1;
-	g_allowAutoMultiple = false;
 	if (cv_autoMultiple.IntValue == 1)
 		SetMultiple(nowMultiple);
-	CreateTimer(1.0, Timer_CheckPlayerInGame, _, TIMER_REPEAT);
 }
 
 public Action Event_round_start(Event event, const char[] name, bool dontBroadcast)
 {
-	g_isRoundStart = true;
 	g_isFirstSet = false;
+	g_allPlayerLoaded = false;
+	CreateTimer(1.0, Timer_CheckPlayerInGame, _, TIMER_REPEAT);
 }
-// 当所有玩家载入完毕之后，才允许自动多倍物资补给
+// 当所有玩家载入完毕之后
 public Action Timer_CheckPlayerInGame(Handle timer, any data)
 {
 	if (AreAllInGame())
 	{
-		g_allowAutoMultiple = true;
+		g_allPlayerLoaded = true;
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
@@ -378,7 +380,7 @@ public Action Timer_CheckPlayerInGame(Handle timer, any data)
 
 public Action Event_round_end(Event event, const char[] name, bool dontBroadcast)
 {
-	g_isRoundStart = false;
+	g_allPlayerLoaded = false;
 	if (cv_autokickbot.IntValue == 1)
 		KickAllBot(false);
 }
@@ -397,7 +399,8 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 	if (IsFakeClient(client))
 		return Plugin_Continue;
 
-	if (g_allowAutoMultiple && cv_autoMultiple.IntValue == 1)
+	// 自动更改物资倍数需所有玩家已完成载入
+	if (g_allPlayerLoaded && cv_autoMultiple.IntValue == 1)
 		CreateTimer(0.5, Timer_SetMultiple);
 
 	if (oldteam==0 && team!=2)
@@ -414,8 +417,7 @@ public Action Timer_SetMultiple(Handle timer)
 
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
-	// 等待全部玩家已经载入完毕之后再加入
-	if (AreAllInGame())
+	if (g_allPlayerLoaded)
 	{
 		JoinSurvivor(client);
 		return Plugin_Stop;
@@ -447,9 +449,10 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 	{
 		case MenuAction_Select:
 		{
-			char clientinfos[48];
-			GetMenuItem(menu, itemNum, clientinfos, 48);
-			cv_svmaxplayers.SetInt(StringToInt(clientinfos));
+			char clientinfos[20];
+			GetMenuItem(menu, itemNum, clientinfos, sizeof(clientinfos));
+			g_maxplayers = StringToInt(clientinfos);
+			cv_svmaxplayers.SetInt(g_maxplayers);
 			PrintToChatAll("\x04[提示]\x05更改服务器的最大人数为\x04 \x03%i \x05人.", cv_svmaxplayers.IntValue);
 		}
 		case MenuAction_End:
@@ -491,18 +494,6 @@ void SetMultiple(int num=-1)
 		g_nowMultiple = num;
 		PrintToChatAll("\x04物资补给倍数已修改为\x03 %d", num);
 	}
-}
-
-// 所有玩家是否已连接至游戏
-bool AreAllInGame()
-{
-	for (int i=1; i<=MaxClients; i++)
-	{
-		// 已连接且不是BOT，但尚未在游戏中的玩家
-		if (IsClientConnected(i) && !IsClientInGame(i) && !IsFakeClient(i))
-			return false;
-	}
-	return true;
 }
 
 // all=true:踢出所有BOT all=false:只踢出多余BOT
@@ -618,6 +609,18 @@ void GivePlayerSupply(int client)
 		g_autoGive.GetString(i, buffer, sizeof(buffer));
 		BypassAndExecuteCommand(client, "give", buffer);
 	}
+}
+
+// 所有玩家是否已载入到游戏
+bool AreAllInGame()
+{
+	for (int i=1; i<=MaxClients; i++)
+	{
+		// 已连接且不是BOT，但尚未在游戏中的玩家
+		if (IsClientConnected(i) && !IsFakeClient(i) && !IsClientInGame(i))
+			return false;
+	}
+	return true;
 }
 
 // 当前在线的玩家数量（生还+旁观）
