@@ -56,6 +56,18 @@ stock bool IsAlive(client)
 		return true;
 }
 
+// 所有玩家是否已载入到游戏 主要用于每回合开始阶段检测
+stock bool IsAllHumanInGame()
+{
+	for (int i=1; i<=MaxClients; i++)
+	{
+		// 若存在已连接且不是BOT，但尚未在游戏中的玩家
+		if (IsClientConnected(i) && !IsFakeClient(i) && !IsClientInGame(i))
+			return false;
+	}
+	return true;
+}
+
 // 从BOT生还者中获取其真实玩家client
 // 在执行该函数前你应先确认该client是有效生还者BOT
 // 若返回0，则说明该BOT没有真实玩家就位

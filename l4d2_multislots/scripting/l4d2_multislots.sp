@@ -370,7 +370,7 @@ public Action Event_round_start(Event event, const char[] name, bool dontBroadca
 // 当所有玩家载入完毕之后
 public Action Timer_CheckPlayerInGame(Handle timer, any data)
 {
-	if (AreAllInGame())
+	if (IsAllHumanInGame())
 	{
 		g_allPlayerLoaded = true;
 		return Plugin_Stop;
@@ -414,7 +414,6 @@ public Action Timer_SetMultiple(Handle timer)
 {
 	SetMultiple();
 }
-
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
 	if (g_allPlayerLoaded)
@@ -615,18 +614,6 @@ void GivePlayerSupply(int client)
 		g_autoGive.GetString(i, buffer, sizeof(buffer));
 		BypassAndExecuteCommand(client, "give", buffer);
 	}
-}
-
-// 所有玩家是否已载入到游戏
-bool AreAllInGame()
-{
-	for (int i=1; i<=MaxClients; i++)
-	{
-		// 若存在已连接且不是BOT，但尚未在游戏中的玩家
-		if (IsClientConnected(i) && !IsFakeClient(i) && !IsClientInGame(i))
-			return false;
-	}
-	return true;
 }
 
 // 当前在线的玩家数量（生还+旁观+闲置）
