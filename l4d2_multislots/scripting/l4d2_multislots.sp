@@ -538,19 +538,10 @@ int JoinSurvivor(client)
 	}
 	else
 	{
-		switch (AddBot())
-		{
-			case 0:
-			{
-				CreateTimer(1.0, Timer_Jointeam2, client);
-				return 0;
-			}
-			case -1:
-				return -1;
-			case -2:
-				return -2;
-		}
-		return -6;
+		int  = AddBot();
+		if (0 == ret)
+			CreateTimer(1.0, Timer_Jointeam2, client);
+		return ret;
 	}
 }
 public Action Timer_Jointeam2(Handle timer, any client)
