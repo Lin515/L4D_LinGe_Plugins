@@ -460,10 +460,10 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 	return 0;
 }
 
-// 设置物资补给倍数，参数为-1则根据当前玩家数量自动设置
-void SetMultiple(int num=-1)
+// 设置物资补给倍数，参数为0则根据当前玩家数量自动设置
+void SetMultiple(int num=0)
 {
-	if (-1 == num)
+	if (0 == num)
 	{
 		int playerNum = GetPlayers();
 		num = playerNum / 4;

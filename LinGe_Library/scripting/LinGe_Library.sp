@@ -1,6 +1,5 @@
 #include <sourcemod>
 #include <sdktools>
-#include <LinGe_Function>
 #include <LinGe_Library>
 
 public Plugin myinfo = {
@@ -40,11 +39,9 @@ public any Native_GetBaseMode(Handle plugin, int numParams)
 		HookSingleEntityOutput(entity, "OnVersus", OnGamemode, true);
 		HookSingleEntityOutput(entity, "OnScavenge", OnGamemode, true);
 		ActivateEntity(entity);
-		AcceptEntityInput(entity, "PostSpawnActivate", -1, -1, 0);
+		AcceptEntityInput(entity, "PostSpawnActivate");
 		if (IsValidEntity(entity))
-		{
 			RemoveEdict(entity);
-		}
 	}
 	return g_iCurrentMode;
 }

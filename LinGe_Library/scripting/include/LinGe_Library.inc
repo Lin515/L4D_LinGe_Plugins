@@ -2,6 +2,7 @@
 	#endinput
 #endif
 #define _LinGe_Library_included_
+#include <LinGe_Function>
 
 public SharedPlugin:__pl_LinGe_Library =
 {

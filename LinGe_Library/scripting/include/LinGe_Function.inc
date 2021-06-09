@@ -1,3 +1,8 @@
+#if defined  _LinGe_Function_included_
+	#endinput
+#endif
+#define _LinGe_Function_included_
+
 // 一些常用函数
 
 // 执行一次带有FCVAR_CHEAT标识的指令
