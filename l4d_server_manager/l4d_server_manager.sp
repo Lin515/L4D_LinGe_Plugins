@@ -52,6 +52,8 @@ public void OnMapStart()
 
 public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 {
+	if (IsFakeClient(client))
+		return true;
 	if (cv_autoLobby.IntValue == 1)
 	{
 		if (cv_allowLobby.IntValue == 1)
@@ -64,6 +66,8 @@ public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 
 public void OnClientDisconnect_Post(int client)
 {
+	if (IsFakeClient(client))
+		return;
 	if (GetHumans() == 0)
 	{
 		if (cv_autoLobby.IntValue == 1)
