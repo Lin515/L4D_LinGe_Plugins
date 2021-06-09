@@ -2,7 +2,6 @@
 
 #include <sourcemod>
 #include <adminmenu>
-#include <LinGe_Function>
 #undef REQUIRE_EXTENSIONS
 #include <builtinvotes>
 #define REQUIRE_EXTENSIONS
@@ -22,38 +21,33 @@ public Plugin myinfo = {
 
 TopMenu g_hCvarMenuMenu;
 
+ConVar cv_checkGamemode; // 是否直接显示当前游戏模式支持的地图
 ConVar cv_useBuiltinvotes; // 是否使用扩展发起原版投票开关
 ConVar cv_mapCheck; // 地图检查开关
 ConVar cv_voteTime; // 投票持续时间
 ConVar cv_mapchangeDelay; // 地图更换延时
 
 bool g_isBuiltinvotesLoaded = false; // Builtinvotes扩展是否加载成功
-bool g_isLinGeLibraryRunning = false; // LinGe_Library插件是否正在运行
 
 bool g_useBuiltinvotes = false; // 当前插件是否使用原版投票
 bool g_allowMapChange = true; // 当前是否允许插件发起地图更改
 bool g_isMapChange[MAXPLAYERS+1]; // 记录本次指令是否是mapchange
+BaseMode g_baseMode = INVALID;
 int g_iChangemapTo, g_iSelected[MAXPLAYERS+1];
 
 char g_mapCodes[1024][64], g_mapNames[1024][64];
 int g_mapCount;
 char g_mapClass[64][64];
-int g_configLevel, g_mapIndex[64];
+int g_classCount, g_mapIndex[64];
 
-// 只在使用扩展发起投票时用到的变量和函数，其均以_Ext结尾
-bool g_isAdminPass_Ext; // 在提前取消投票的时候判断是否是管理员直接通过了本次投票
-
-// Voting variables
-bool g_bVoteInProgress; // 当前是否有投票在进行中
-int g_iNoCount, g_iVoters, g_iYesCount; // 票数统计
-Handle timer_voteCheck = INVALID_HANDLE;
+bool g_isAdminPass; // 在提前取消投票的时候判断是否是管理员直接通过了本次投票
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion game = GetEngineVersion();
 	if (game!=Engine_Left4Dead && game!=Engine_Left4Dead2)
 	{
-		strcopy(error, err_max, "本插件只支持 Left 4 Dead 1&2 .");
+		strcopy(error, err_max, "本插件只支持 Left 4 Dead 1&2 ");
 		// 在1代没经过测试，懒得测试，应该也是支持的
 		return APLRes_SilentFailure;
 	}
@@ -69,10 +63,11 @@ public void OnPluginStart()
 	RegAdminCmd("sm_mapchange", CommandChange,	ADMFLAG_ROOT, "管理员直接更换地图无需经过投票");
 	RegConsoleCmd("sm_mapvote", CommandVote, "打开投票换图菜单");
 
-	cv_useBuiltinvotes = CreateConVar("l4d_mapvote_use_builtinvotes", "1", "是否使用builtinvotes扩展发起原版投票？开启情况下，若扩展未正常加载仍会使用sourcemod平台菜单投票。游戏中直接修改这个参数不会生效。", _, true, 0.0, true, 1.0);
-	cv_mapCheck = CreateConVar("l4d_mapvote_map_check", "1", "地图检查，若开启则不会显示data/l4d_mapvote.cfg中的无效地图。游戏中直接修改这个参数不会生效。（注意：只有服务端才会自动读取addons下的全部三方图，客户端不会。）", _, true, 0.0, true, 1.0);
-	cv_voteTime = CreateConVar("l4d_mapvote_vote_time", "20", "投票应在多少秒内完成？", _, true, 10.0, true, 60.0);
-	cv_mapchangeDelay = CreateConVar("l4d_mapvote_mapchange_delay", "5", "地图更换延时", _, true, 0.0, true, 60.0);
+	cv_checkGamemode	= CreateConVar("l4d_mapvote_check_gamemode", "1", "是否直接显示当前游戏模式所支持的地图？（获取游戏模式需要安装LinGe_Library.smx。此外，插件无法检测地图支持哪些模式，你需要自己在data/l4d_mapvote.cfg中配置）", _, true, 0.0, true, 1.0);
+	cv_useBuiltinvotes	= CreateConVar("l4d_mapvote_use_builtinvotes", "1", "是否使用builtinvotes扩展发起原版投票？开启情况下，若扩展未正常加载仍会使用sourcemod平台菜单投票。游戏中直接修改这个参数不会生效。", _, true, 0.0, true, 1.0);
+	cv_mapCheck			= CreateConVar("l4d_mapvote_map_check", "1", "地图检查，若开启则不会显示data/l4d_mapvote.cfg中的无效地图。游戏中直接修改这个参数不会生效。（注意：只有服务端才会自动读取addons下的全部三方图，客户端不会。）", _, true, 0.0, true, 1.0);
+	cv_voteTime			= CreateConVar("l4d_mapvote_vote_time", "20", "投票应在多少秒内完成？", _, true, 10.0, true, 60.0);
+	cv_mapchangeDelay	= CreateConVar("l4d_mapvote_mapchange_delay", "5", "地图更换延时", _, true, 0.0, true, 60.0);
 	AutoExecConfig(true, "l4d_mapvote");
 
 	Handle topmenu = GetAdminTopMenu();
@@ -81,7 +76,6 @@ public void OnPluginStart()
 
 	if ( GetExtensionFileStatus("builtinvotes.ext") == 1 )
 		g_isBuiltinvotesLoaded = true;
-	g_isLinGeLibraryRunning = IsPluginRunning("LinGe_Library.smx");
 }
 
 // 不编写游戏中途重新读取地图列表的功能，因为读取量太大时会造成短暂的卡顿
@@ -92,6 +86,10 @@ public void OnConfigsExecuted()
 		g_useBuiltinvotes = true;
 	else
 		g_useBuiltinvotes = false;
+	if (IsPluginRunning("LinGe_Library.smx"))
+		g_baseMode = GetBaseMode();
+	else
+		g_baseMode = INVALID;
 	g_allowMapChange = true;
 	LoadConfig();
 }
@@ -118,7 +116,7 @@ public void OnAdminMenuReady(Handle topmenu)
 	AddToTopMenu(g_hCvarMenuMenu, "sm_changemap_menu", TopMenuObject_Item, Handle_Category, player_commands, "sm_changemap_menu", ADMFLAG_GENERIC);
 }
 
-public int Handle_Category(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength)
+public int Handle_Category(Handle topmenu, TopMenuAction action, TopMenuObject object_id, int client, char[] buffer, int maxlength)
 {
 	switch( action )
 	{
@@ -128,8 +126,8 @@ public int Handle_Category(Handle topmenu, TopMenuAction action, TopMenuObject o
 			Format(buffer, maxlength, "更换地图");
 		case TopMenuAction_SelectOption:
 		{
-			g_isMapChange[param] = true;
-			VoteMenu_Select(param);
+			g_isMapChange[client] = true;
+			VoteMenu_Select(client);
 		}
 	}
 }
@@ -144,16 +142,14 @@ void LoadConfig()
 	BuildPath(Path_SM, sPath, sizeof(sPath), CONFIG_MAPVOTE);
 
 	g_mapCount = 0;
-	g_configLevel = 0;
+	g_classCount = -1;
 	if (FileExists(sPath))
 		ParseConfigFile(sPath); // 读取data/l4d_mapvote.cfg中的地图
 	else
-		g_configLevel = 1;
-//	LoadMapList(); // 读取所有能读取的地图
-	// 不过因为插件无法获取到地图的显示名称，相较于sourcemod的votemap也没什么太大区别
-	// 所以感觉这个功能意义不是很大，暂不启用
+		SetFailState("文件不存在 : %s", sPath);
 }
 
+// 读取配置文件
 bool ParseConfigFile(const char[] file)
 {
 	SMCParser parser = new SMCParser();
@@ -165,7 +161,7 @@ bool ParseConfigFile(const char[] file)
 	SMCError result = parser.ParseFile(file, line, col);
 	delete parser;
 
-	if( result != SMCError_Okay )
+	if ( result != SMCError_Okay )
 	{
 		SMC_GetErrorString(result, error, sizeof(error));
 		SetFailState("%s on line %d, col %d of %s [%d]", error, line, col, file, result);
@@ -176,11 +172,11 @@ bool ParseConfigFile(const char[] file)
 
 public SMCResult Config_NewSection(Handle parser, const char[] section, bool quotes)
 {
-	g_configLevel++;
-	if( g_configLevel > 1 )
+	g_classCount++;
+	if( g_classCount > 0 )
 	{
-		strcopy(g_mapClass[g_configLevel-2], 64, section);
-		g_mapIndex[g_configLevel-2] = g_mapCount;
+		strcopy(g_mapClass[g_classCount-1], 64, section);
+		g_mapIndex[g_classCount-1] = g_mapCount;
 	}
 	return SMCParse_Continue;
 }
@@ -194,111 +190,46 @@ public SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] v
 	g_mapCount++;
 	return SMCParse_Continue;
 }
-
 public SMCResult Config_EndSection(Handle parser)
 {
-	g_mapIndex[g_configLevel-1] = g_mapCount;
+	g_mapIndex[g_classCount] = g_mapCount;
 	return SMCParse_Continue;
 }
-
 public void Config_End(Handle parser, bool halted, bool failed)
 {
 	if( failed )
-		SetFailState("Error: Cannot load the mapvote config.");
-}
-
-// 直接从sourcemod自带的votemap.sp复制过来改写的，懒得深究细节
-void LoadMapList()
-{
-	Handle map_array = null;
-	int map_serial = -1;
-
-	if ((map_array = ReadMapList(null,
-			map_serial,
-			"sm_votemap menu",
-			MAPLIST_FLAG_CLEARARRAY|MAPLIST_FLAG_MAPSFOLDER))
-		== null)
-	{
-		return;
-	}
-
-	int map_count = GetArraySize(map_array);
-	g_configLevel++;
-	strcopy(g_mapClass[g_configLevel-2], 64, "所有地图");
-	g_mapIndex[g_configLevel-2] = g_mapCount;
-
-	for (int i=0; i<map_count; i++)
-	{
-		GetArrayString(map_array, i, g_mapCodes[g_mapCount], 64);
-		GetArrayString(map_array, i, g_mapNames[g_mapCount], 64);
-		// 在求生之路里，GetMapDisplayName是没有用的，它获取不到地图文本里的DisplayName
-		//GetMapDisplayName(g_mapCodes[g_mapCount], g_mapNames[g_mapCount], 64);
-		//Format(g_mapNames[g_mapCount], 64, "%s[%s]", g_mapNames[g_mapCount], g_mapCodes[g_mapCount]);
-		g_mapCount++;
-	}
-	g_mapIndex[g_configLevel-1] = g_mapCount;
+		SetFailState("Error: Cannot load the mapvote config");
 }
 
 
+// --------------------------------CMD---------------------------------------
 public Action CommandVeto(int client, int args)
 {
-	if (g_useBuiltinvotes)
+	if (_IsVoteInProgress())
 	{
-		if(IsBuiltinVoteInProgress())
-		{
-			g_isAdminPass_Ext = false;
-			PrintToChatAll("\x04管理员否决了本次投票");
-			CancelBuiltinVote();
-		}
-	}
-	else
-	{
-		if(g_bVoteInProgress)
-		{
-			if (timer_voteCheck != INVALID_HANDLE)
-			{
-				KillTimer(timer_voteCheck);
-				timer_voteCheck = INVALID_HANDLE;
-			}
-			g_bVoteInProgress = false;
-			PrintToChatAll("\x04管理员否决了本次投票");
-		}
+		g_isAdminPass = false;
+		PrintToChatAll("\x04管理员否决了本次投票");
+		_CancelVote();
 	}
 	return Plugin_Handled;
 }
 
 public Action CommandPass(int client, int args)
 {
-	if (g_useBuiltinvotes)
+	if(_IsVoteInProgress())
 	{
-		if(IsBuiltinVoteInProgress())
-		{
-			g_isAdminPass_Ext = true;
-			PrintToChatAll("\x04管理员通过了本次投票");
-			CancelBuiltinVote();
-		}
-	}
-	else
-	{
-		if(g_bVoteInProgress)
-		{
-			if (timer_voteCheck != INVALID_HANDLE)
-			{
-				KillTimer(timer_voteCheck);
-				timer_voteCheck = INVALID_HANDLE;
-			}
-			g_bVoteInProgress = false;
-			PrintToChatAll("\x04管理员通过了本次投票");
-			ChangeMapTo(g_iChangemapTo);
-		}
+		g_isAdminPass = true;
+		PrintToChatAll("\x04管理员通过了本次投票");
+		_CancelVote();
 	}
 	return Plugin_Handled;
 }
 
 public Action CommandVote(int client, int args)
 {
-	if (args > 0)
+	if (0 == client || args > 0)
 		return Plugin_Handled;
+
 	if (GetClientTeam(client) == 1)
 	{
 		PrintToChat(client, "\x04旁观者不能发起投票");
@@ -306,21 +237,10 @@ public Action CommandVote(int client, int args)
 	}
 
 	// 判断是否能发起投票
-	if (g_useBuiltinvotes)
+	if(!_IsNewVoteAllowed())
 	{
-		if(!IsNewBuiltinVoteAllowed())
-		{
-			PrintToChat(client, "\x04暂时还不能发起新投票");
-			return Plugin_Handled;
-		}
-	}
-	else
-	{
-		if (g_bVoteInProgress)
-		{
-			PrintToChat(client, "\x04已有投票正在进行");
-			return Plugin_Handled;
-		}
+		PrintToChat(client, "\x04暂时还不能发起新投票");
+		return Plugin_Handled;
 	}
 
 	g_isMapChange[client] = false;
@@ -330,6 +250,9 @@ public Action CommandVote(int client, int args)
 
 public Action CommandChange(int client, int args)
 {
+	if (0 == client || args > 0)
+		return Plugin_Handled;
+
 	g_isMapChange[client] = true;
 	VoteMenu_Select(client);
 	return Plugin_Handled;
@@ -347,18 +270,29 @@ void VoteMenu_Select(int client)
 		PrintToChat(client, "\x04当前不能发起地图更改");
 		return;
 	}
-	Menu menu = new Menu(VoteMenuHandler_Select);
-	if (g_isMapChange[client])
-		menu.SetTitle("更换地图");
+
+	if (cv_checkGamemode.IntValue == 1
+	&& g_baseMode != INVALID
+	&& g_baseMode <= g_classCount)
+	{
+		g_iSelected[client] = g_baseMode - 1;
+		VoteTwoMenu_Select(client, g_iSelected[client], false);
+	}
 	else
-		menu.SetTitle("投票换图");
+	{
+		Menu menu = new Menu(VoteMenuHandler_Select);
+		if (g_isMapChange[client])
+			menu.SetTitle("更换地图");
+		else
+			menu.SetTitle("投票换图");
 
-	// Build menu
-	for (int i=0; i<g_configLevel-1; i++)
-		menu.AddItem("", g_mapClass[i]);
+		// Build menu
+		for (int i=0; i<g_classCount; i++)
+			menu.AddItem("", g_mapClass[i]);
 
-	menu.ExitButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
+		// Display menu
+		menu.Display(client, MENU_TIME_FOREVER);
+	}
 }
 
 public int VoteMenuHandler_Select(Menu menu, MenuAction action, int client, int curSel)
@@ -372,28 +306,26 @@ public int VoteMenuHandler_Select(Menu menu, MenuAction action, int client, int 
 		case MenuAction_Select:
 		{
 			g_iSelected[client] = curSel;
-			VoteTwoMenu_Select(client, curSel);
+			VoteTwoMenu_Select(client, g_iSelected[client]);
 		}
 	}
 }
 
-void VoteTwoMenu_Select(int client, int curSel)
+void VoteTwoMenu_Select(int client, int curSel, bool allowBack=true)
 {
 	Menu menu = new Menu(VoteMenuTwoMenur_Select);
 	if (g_isMapChange[client])
-		menu.SetTitle("更换地图");
+		menu.SetTitle("更换地图[%s]", g_mapClass[curSel]);
 	else
-		menu.SetTitle("投票换图");
-
+		menu.SetTitle("投票换图[%s]", g_mapClass[curSel]);
 	// Build menu
 	int idxsrt = g_mapIndex[curSel];
 	curSel = g_mapIndex[curSel+1];
-
 	for (int i=idxsrt; i<curSel; i++)
 		menu.AddItem("", g_mapNames[i]);
-
 	// Display menu
-	menu.ExitBackButton = true;
+	if (allowBack)
+		menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -420,101 +352,73 @@ public int VoteMenuTwoMenur_Select(Menu menu, MenuAction action, int client, int
 			int iSelected = g_iSelected[client];
 			iSelected = g_mapIndex[iSelected];
 			iSelected += curSel;
-			if (g_useBuiltinvotes)
-				MapSelect_Ext(client, iSelected);
-			else
-				MapSelect(client, iSelected);
+			MapSelect(client, iSelected);
 		}
 	}
 }
 
-public Action delayChangeMap(Handle timer, any imap)
-{
-	g_allowMapChange = false;
-	ChangeMapTo(imap);
-}
-
-// 延时更换地图
-int g_time;
-void ChangeMapTo(int imap)
-{
-	g_time = cv_mapchangeDelay.IntValue;
-	g_allowMapChange = false;
-	if (g_time < 1)
-	{
-		ServerCommand("changelevel %s", g_mapCodes[imap]);
-		g_allowMapChange = true;
-	}
-	else
-	{
-		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
-		CreateTimer(1.0, tmrChangeMap, imap, TIMER_REPEAT);
-	}
-}
-public Action tmrChangeMap(Handle timer, any imap)
-{
-	if (g_time > 0)
-	{
-		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
-		return Plugin_Continue;
-	}
-	ServerCommand("changelevel %s", g_mapCodes[imap]);
-	g_allowMapChange = true;
-	return Plugin_Stop;
-}
-
-
-// 使用builtinvotes扩展来启动原版投票
-// 选择到指定地图
-void MapSelect_Ext(int client, int iSelected)
+// 已选择指定地图
+void MapSelect(int client, int iSelected)
 {
 	if ( g_isMapChange[client] )
 	{
-		if (IsBuiltinVoteInProgress())
+		if (_IsVoteInProgress())
 		{
-			g_isAdminPass_Ext = false;
+			g_isAdminPass = false;
 			PrintToChatAll("\x04管理员已选择地图，本次投票取消");
-			CancelBuiltinVote();
+			_CancelVote();
 		}
 		ChangeMapTo(iSelected);
 	}
 	else
-		StartVote_Ext(client, iSelected);
+		StartVote(client, iSelected);
 }
 
 Handle g_voteExt;
-void StartVote_Ext(int client, int imap)
+int g_iNumPlayers = 0;
+int g_iPlayers[MAXPLAYERS];
+void StartVote(int client, int imap)
 {
 	if (GetClientTeam(client) == 1)
 	{
 		PrintToChat(client, "\x04旁观者不能发起投票");
 		return;
 	}
-	if (!IsNewBuiltinVoteAllowed())
+	if (!_IsNewVoteAllowed())
 	{
 		PrintToChat(client, "\x04暂时还不能发起新投票");
 		return;
 	}
 
 	// 开始发起投票
-	g_isAdminPass_Ext = false;
-	int iNumPlayers = 0;
-	decl iPlayers[MaxClients];
 	char sBuffer[128];
 	Format(sBuffer, sizeof(sBuffer), "是否同意更换地图为 %s ?", g_mapNames[imap]);
 	g_iChangemapTo = imap;
+	g_isAdminPass = false;
+	g_iNumPlayers = 0;
 
 	for (int i=1; i<=MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) == 1))
 			continue;
-		iPlayers[iNumPlayers++] = i;
+		g_iPlayers[g_iNumPlayers++] = i;
 	}
 
-	g_voteExt = CreateBuiltinVote(Vote_ActionHandler_Ext, BuiltinVoteType_Custom_YesNo, BuiltinVoteAction_Cancel | BuiltinVoteAction_VoteEnd | BuiltinVoteAction_End);
-	SetBuiltinVoteArgument(g_voteExt, sBuffer);
-	SetBuiltinVoteInitiator(g_voteExt, client);
-	DisplayBuiltinVote(g_voteExt, iPlayers, iNumPlayers, cv_voteTime.IntValue);
+	if (g_useBuiltinvotes)
+	{
+		g_voteExt = CreateBuiltinVote(Vote_ActionHandler_Ext, BuiltinVoteType_Custom_YesNo, BuiltinVoteAction_Cancel | BuiltinVoteAction_VoteEnd | BuiltinVoteAction_End);
+		SetBuiltinVoteArgument(g_voteExt, sBuffer);
+		SetBuiltinVoteInitiator(g_voteExt, client);
+		DisplayBuiltinVote(g_voteExt, g_iPlayers, g_iNumPlayers, cv_voteTime.IntValue);
+	}
+	else
+	{
+		Menu vote = new Menu(Vote_ActionHandler_Menu);
+		vote.SetTitle(sBuffer);
+		vote.AddItem("", "是");
+		vote.AddItem("", "否");
+		vote.DisplayVote(g_iPlayers, g_iNumPlayers, cv_voteTime.IntValue);
+	}
 }
 
 public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1, param2)
@@ -546,7 +450,7 @@ public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1,
 		// 投票被取消
 		case BuiltinVoteAction_Cancel:
 		{
-			if (g_isAdminPass_Ext)
+			if (g_isAdminPass)
 			{
 				DisplayBuiltinVotePass(vote, sBuffer);
 				CreateTimer(3.0, delayChangeMap, g_iChangemapTo);
@@ -563,119 +467,105 @@ public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1,
 	}
 }
 
-// 使用Sourcemod菜单投票
-
-// 已选择指定地图
-void MapSelect(int client, int iSelected)
+public int Vote_ActionHandler_Menu(Menu menu, MenuAction action, int param1, int param2)
 {
-	if ( g_isMapChange[client] )
+	switch( action )
 	{
-		if (g_bVoteInProgress)
+		// 投票结束
+		case MenuAction_VoteEnd:
 		{
-			if (timer_voteCheck != INVALID_HANDLE)
+			int yes = 0, winningVotes = 0, totalVotes = 0;
+			GetMenuVoteInfo(param2, winningVotes, totalVotes);
+			if (0 == param1) // 0为 是 选项
+				yes = winningVotes;
+			else
+				yes = totalVotes - winningVotes;
+			if (yes > g_iNumPlayers-yes)
 			{
-				KillTimer(timer_voteCheck);
-				timer_voteCheck = INVALID_HANDLE;
+				PrintToChatAll("\x04同意票数\x03 %d\x04，否定票数\x03 %d\x04，本次投票通过", yes, g_iNumPlayers-yes);
+				ChangeMapTo(g_iChangemapTo);
 			}
-			g_bVoteInProgress = false;
-			PrintToChatAll("\x04管理员已选择地图，本次投票取消");
+			else
+			{
+				PrintToChatAll("\x04同意票数\x03 %d\x04，否定票数\x03 %d\x04，本次投票未通过", yes, g_iNumPlayers-yes);
+			}
 		}
-		ChangeMapTo(iSelected);
-	}
-	else
-		StartVote(client, iSelected);
-}
-
-void StartVote(int client, int imap)
-{
-	if (GetClientTeam(client) == 1)
-	{
-		PrintToChat(client, "\x04旁观者不能发起投票.");
-		return;
-	}
-
-	if(g_bVoteInProgress)
-	{
-		PrintToChat(client, "\x04已有投票正在进行.");
-		return;
-	}
-
-	// 开始发起投票
-	char sBuffer[128];
-	Format(sBuffer, sizeof(sBuffer), "是否同意更换地图为 %s ?", g_mapNames[imap]);
-	g_bVoteInProgress = true;
-	g_iChangemapTo = imap;
-	g_iYesCount = 0;
-	g_iNoCount = 0;
-	g_iVoters = 0;
-
-	Panel panel;
-	// Display vote
-	for (int i=1; i<=MaxClients; i++)
-	{
-		if( IsClientInGame(i) && !IsFakeClient(i) && GetClientTeam(i)!=1)
+		// 投票被取消
+		case MenuAction_VoteCancel:
 		{
-			panel = new Panel();
-			SetGlobalTransTarget(i);
-
-			panel.SetTitle(sBuffer);
-			panel.DrawItem("是");
-			panel.DrawItem("否");
-
-			PrintToChat(i, "\x04投票开始：是否更换地图为\x03 %s \x04?", g_mapNames[imap]);
-
-			panel.Send(i, VoteMenu_Handler, cv_voteTime.IntValue);
-			g_iVoters++;
-			g_iNoCount++;
-			delete panel;
+			// 所有人弃权
+			if (VoteCancel_NoVotes == param1)
+			{
+				PrintToChatAll("\x04所有人弃权投票，本次投票未通过");
+			}
+			else if (VoteCancel_Generic == param1 && g_isAdminPass)
+				ChangeMapTo(g_iChangemapTo);
 		}
-	}
-	timer_voteCheck = CreateTimer(cv_voteTime.IntValue+1.0, Timer_VoteCheck);
-}
-
-// 菜单投票
-public int VoteMenu_Handler(Menu menu, MenuAction action, int client, int choice)
-{
-	if (action == MenuAction_Select )
-	{
-		if (choice == 1) //yes
+		case MenuAction_End:
 		{
-			g_iNoCount--;
-			g_iYesCount++;
-			g_iVoters--;
+			delete menu;
 		}
-		else // No
-			g_iVoters--;
-
-		// 所有人已投票则提前结束投票
-		if( g_iVoters == 0 ) // Everyone Has Voted
-			VoteCompleted();
 	}
 }
-// 定时器，如果时间超过则自动结束投票
-public Action Timer_VoteCheck(Handle timer)
-{
-	VoteCompleted();
-}
-// 投票结束
-void VoteCompleted()
-{
-	if (timer_voteCheck != INVALID_HANDLE)
-	{
-		KillTimer(timer_voteCheck);
-		timer_voteCheck = INVALID_HANDLE;
-	}
-	if(!g_bVoteInProgress)
-		return;
 
-	g_bVoteInProgress = false;
-	if (g_iYesCount > g_iNoCount)
+
+// 延时更换地图
+public Action delayChangeMap(Handle timer, any imap)
+{
+	g_allowMapChange = false;
+	ChangeMapTo(imap);
+}
+
+int g_time;
+void ChangeMapTo(int imap)
+{
+	g_time = cv_mapchangeDelay.IntValue;
+	g_allowMapChange = false;
+	if (g_time < 1)
 	{
-		PrintToChatAll("\x04本次投票已通过，同意：\x03%d \x04否定：\x03%d", g_iYesCount, g_iNoCount);
-		ChangeMapTo(g_iChangemapTo);
+		ServerCommand("changelevel %s", g_mapCodes[imap]);
+		g_allowMapChange = true;
 	}
 	else
 	{
-		PrintToChatAll("\x04本次投票未通过，同意：\x03%d \x04否定：\x03%d", g_iYesCount, g_iNoCount);
+		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
+		CreateTimer(1.0, tmrChangeMap, imap, TIMER_REPEAT);
 	}
+}
+public Action tmrChangeMap(Handle timer, any imap)
+{
+	if (g_time > 0)
+	{
+		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
+		return Plugin_Continue;
+	}
+	ServerCommand("changelevel %s", g_mapCodes[imap]);
+	g_allowMapChange = true;
+	return Plugin_Stop;
+}
+
+
+
+bool _IsNewVoteAllowed()
+{
+	if (g_useBuiltinvotes)
+		return IsNewBuiltinVoteAllowed();
+	else
+		return IsNewVoteAllowed();
+}
+
+bool _IsVoteInProgress()
+{
+	if (g_useBuiltinvotes)
+		return IsBuiltinVoteInProgress();
+	else
+		return IsVoteInProgress();
+}
+
+void _CancelVote()
+{
+	if (g_useBuiltinvotes)
+		CancelBuiltinVote();
+	else
+		CancelVote();
 }
