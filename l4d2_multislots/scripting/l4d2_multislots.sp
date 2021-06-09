@@ -71,15 +71,15 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_afk", Cmd_afk, "快速闲置");
 
 	cv_l4dSurvivorLimit = FindConVar("survivor_limit");
-	cv_svmaxplayers = FindConVar("sv_maxplayers");
-	cv_survivorLimit = 	CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_NOTIFY, true, 1.0, true, 32.0);
-	cv_maxs = 		CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_NOTIFY, true, 1.0, true, 32.0);
-	cv_autoGive = CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoMultiple = CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_allowSset = 	CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoJoin = 	CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_onlySafeAddBot = CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoKickBot = CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_svmaxplayers =	FindConVar("sv_maxplayers");
+	cv_survivorLimit =	CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_NOTIFY, true, 1.0, true, 32.0);
+	cv_maxs = 			CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_NOTIFY, true, 1.0, true, 32.0);
+	cv_autoGive =		CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品(需使用sm_autogive设置给予哪些物品)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoMultiple =	CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数(需使用sm_mmn设置哪些物资多倍，若不设置则默认将医疗包多倍)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_allowSset =		CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoJoin =		CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_onlySafeAddBot =	CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoKickBot =	CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "l4d2_multislots");
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_autoMultiple.AddChangeHook(AutoMultipleChanged);
@@ -98,6 +98,8 @@ public void OnPluginStart()
 
 public Action Cmd_forceaddbot(int client, int agrs)
 {
+	if (0 == client)
+		return Plugin_Handled;
 	if (AddBot(true) == 0)
 		PrintToChat(client, "\x04已强制添加一个BOT");
 	return Plugin_Handled;
@@ -105,6 +107,8 @@ public Action Cmd_forceaddbot(int client, int agrs)
 
 public Action Cmd_addbot(int client, int agrs)
 {
+	if (0 == client)
+		return Plugin_Handled;
 	switch (AddBot())
 	{
 		case -1:
@@ -117,6 +121,8 @@ public Action Cmd_addbot(int client, int agrs)
 
 public Action Cmd_away(int client, int args)
 {
+	if (0 == client)
+		return Plugin_Handled;
 	if (GetClientTeam(client) == 1)
 	{
 		if (IsClientIdle(client))
@@ -134,6 +140,8 @@ public Action Cmd_away(int client, int args)
 
 public Action Cmd_afk(int client, int args)
 {
+	if (0 == client)
+		return Plugin_Handled;
 	if (GetClientTeam(client) == 1)
 	{
 		if (IsClientIdle(client))
@@ -162,6 +170,8 @@ public Action Cmd_afk(int client, int args)
 
 public Action Cmd_joingame(int client, int args)
 {
+	if (0 == client)
+		return Plugin_Handled;
 	switch (JoinSurvivor(client))
 	{
 		case -1:
@@ -538,7 +548,7 @@ int JoinSurvivor(client)
 	}
 	else
 	{
-		int  = AddBot();
+		int ret = AddBot();
 		if (0 == ret)
 			CreateTimer(1.0, Timer_Jointeam2, client);
 		return ret;
@@ -557,7 +567,9 @@ int AddBot(bool force=false)
 		if (L4D_HasAnySurvivorLeftSafeArea())
 			return -1;
 	}
-	if (GetAliveBotSurvivors()>=GetSpectators() && GetSurvivors()>=cv_survivorLimit.IntValue && !force)
+	if (GetAliveBotSurvivors() >= GetSpectators()
+	&& GetSurvivors() >= cv_survivorLimit.IntValue
+	&& !force)
 		return -2;
 
 	int survivorbot = CreateFakeClient("survivor bot");
