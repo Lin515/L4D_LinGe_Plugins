@@ -50,22 +50,17 @@ public void OnMapStart()
 	}
 }
 
-public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
+public void OnClientPutInServer(int client)
 {
 	if (IsFakeClient(client))
-		return true;
+		return;
 	if (cv_autoLobby.IntValue == 1)
 	{
 		if (cv_allowLobby.IntValue == 1)
 			cv_allowLobby.SetInt(0);
+		if (cv_hostingLobby.IntValue == 1)
+			L4D_LobbyUnreserve();
 	}
-	return true;
-}
-
-public void OnClientPutInServer(int client)
-{
-	if (cv_hostingLobby.IntValue == 1)
-		L4D_LobbyUnreserve();
 }
 
 public void OnClientDisconnect_Post(int client)
