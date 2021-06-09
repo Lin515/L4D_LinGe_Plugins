@@ -58,10 +58,14 @@ public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 	{
 		if (cv_allowLobby.IntValue == 1)
 			cv_allowLobby.SetInt(0);
-		if (cv_hostingLobby.IntValue == 1)
-			L4D_LobbyUnreserve();
 	}
 	return true;
+}
+
+public void OnClientPutInServer(int client)
+{
+	if (cv_hostingLobby.IntValue == 1)
+		L4D_LobbyUnreserve();
 }
 
 public void OnClientDisconnect_Post(int client)
