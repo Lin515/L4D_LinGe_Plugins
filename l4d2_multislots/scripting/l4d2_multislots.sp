@@ -1,4 +1,4 @@
-// 多人控制 主要是自用 代码参考了望夜与豆瓣插件包中的多人插件
+// 多人控制 主要是自用 代码参考了望夜多人插件(R_smc)与豆瓣多人插件（l4d2_multislots SwiftReal, MI 5, 豆瓣）
 
 #include <sourcemod>
 #include <sdktools>
@@ -46,13 +46,12 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "本插件只支持 Left 4 Dead 2 ");
 		return APLRes_SilentFailure;
 	}
+	LoadSDKCallFunction();
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
-	LoadSDKCallFunction();
-
 	RegAdminCmd("sm_forceaddbot", Cmd_forceaddbot, ADMFLAG_ROOT, "强制增加一个BOT，无视条件限制");
 	RegAdminCmd("sm_addbot", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");
 	RegAdminCmd("sm_ab", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");

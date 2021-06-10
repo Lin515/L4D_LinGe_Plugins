@@ -90,9 +90,9 @@ stock bool IsClientIdle(int client)
 
 	for(int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsFakeClient(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2)
+			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{
 				if (GetHumanClient(i) == client)
 					return true;
@@ -153,9 +153,9 @@ stock int GetBotSurvivors()
 	int numBots = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsFakeClient(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2)
+			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{
 				if (GetHumanClient(i) == 0)
 					numBots++;
@@ -171,9 +171,9 @@ stock int GetAliveBotSurvivors()
 	int AnumBots = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsFakeClient(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2)
+			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{
 				if (GetHumanClient(i) == 0 && IsAlive(i))
 					AnumBots++;
@@ -189,9 +189,9 @@ stock int GetIdleSurvivors()
 	int numIdle = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsFakeClient(i))
+		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2)
+			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{
 				if (GetHumanClient(i) > 0)
 					numIdle++;
@@ -207,9 +207,9 @@ stock int GetSpectators()
 	int numaways = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && !IsFakeClient(i)) // 不知道有没有出现BOT在旁观的可能，总之加了这个判断不会错
+		if (IsClientInGame(i)) 
 		{
-			if (GetClientTeam(i) == 1)
+			if (GetClientTeam(i) == 1 && !IsFakeClient(i)) // 不知道有没有出现BOT在旁观的可能，总之加了这个判断不会错
 				numaways++;
 		}
 	}
