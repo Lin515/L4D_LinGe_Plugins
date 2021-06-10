@@ -29,6 +29,7 @@ ConVar cv_mapchangeDelay; // 地图更换延时
 
 bool g_isBuiltinvotesLoaded = false; // Builtinvotes扩展是否加载成功
 
+int g_isMapCheck = -1;
 bool g_useBuiltinvotes = false; // 当前插件是否使用原版投票
 bool g_allowMapChange = true; // 当前是否允许插件发起地图更改
 bool g_isMapChange[MAXPLAYERS+1]; // 记录本次指令是否是mapchange
@@ -90,8 +91,12 @@ public void OnConfigsExecuted()
 		g_baseMode = GetBaseMode();
 	else
 		g_baseMode = INVALID;
+	if (g_isMapCheck != cv_mapCheck.IntValue)
+	{
+		g_isMapCheck = cv_mapCheck.IntValue;
+		LoadConfig();
+	}
 	g_allowMapChange = true;
-	LoadConfig();
 }
 
 // ====================================================================================================
@@ -183,7 +188,7 @@ public SMCResult Config_NewSection(Handle parser, const char[] section, bool quo
 
 public SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
 {
-	if (!IsMapValid(value) && cv_mapCheck.IntValue == 1)
+	if (!IsMapValid(value) && g_isMapCheck == 1)
 		return SMCParse_Continue;
 	strcopy(g_mapNames[g_mapCount], 64, key);
 	strcopy(g_mapCodes[g_mapCount], 64, value);
