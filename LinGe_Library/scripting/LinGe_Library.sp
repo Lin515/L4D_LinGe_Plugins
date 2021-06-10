@@ -26,11 +26,11 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	return APLRes_Success;
 }
 
-BaseModeType g_iCurrentMode = INVALID;
+BaseMode g_iCurrentMode = INVALID;
 public any Native_GetBaseMode(Handle plugin, int numParams)
 {
 	g_iCurrentMode = INVALID;
-	int entity = CreateEntityByName("info_gamemode", -1);
+	int entity = CreateEntityByName("info_gamemode");
 	if (IsValidEntity(entity))
 	{
 		DispatchSpawn(entity);
@@ -67,7 +67,7 @@ public any Native_IsOnVersus(Handle plugin, int numParams)
 	if (strcmp(gamemode, "mutation15") == 0) // 生还者对抗
 		return true;
 
-	BaseModeType baseMode = GetBaseMode();
+	BaseMode baseMode = GetBaseMode();
 	if (OnVersus == baseMode)
 		return true;
 	if (OnScavenge == baseMode)
