@@ -20,7 +20,6 @@ public Plugin myinfo = {
 TopMenu g_hCvarMenuMenu;
 
 ConVar cv_l4dGamemode;
-ConVar cv_checkGamemode; // 是否直接显示当前游戏模式支持的地图
 ConVar cv_allowChangeMode; // 是否允许插件改变游戏模式
 ConVar cv_useBuiltinvotes; // 是否使用扩展发起原版投票开关
 ConVar cv_mapCheck; // 地图检查开关
@@ -35,7 +34,7 @@ bool g_allowMapChange = true; // 当前是否允许插件发起地图更改
 bool g_isMapChange[MAXPLAYERS+1]; // 记录本次指令是否是mapchange
 
 BaseMode g_baseMode = INVALID;
-ArrayList g_modeClass;
+ArrayList g_modeClass; // 存储对应模式的地图列表索引
 int g_selected[MAXPLAYERS+1];
 char g_mapCodes[1024][64], g_mapNames[1024][64];
 int g_mapCount;
@@ -65,7 +64,6 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_mapvote", CommandVote, "打开投票换图菜单");
 
 	cv_l4dGamemode		= FindConVar("mp_gamemode");
-	cv_checkGamemode	= CreateConVar("l4d_mapvote_check_gamemode", "1", "是否直接显示当前游戏模式所支持的地图？（获取游戏模式需要安装LinGe_Library.smx。此外，插件无法检测地图支持哪些模式，你需要自己在data/l4d_mapvote.cfg中配置）", _, true, 0.0, true, 1.0);
 	cv_allowChangeMode	= CreateConVar("l4d_mapvote_allow_changemode", "1", "当要更换的地图指定模式与当前游戏模式不符时，是否允许插件改变为指定游戏模式", _, true, 0.0, true, 1.0);
 	cv_useBuiltinvotes	= CreateConVar("l4d_mapvote_use_builtinvotes", "1", "是否使用builtinvotes扩展发起原版投票？开启情况下，若扩展未正常加载仍会使用sourcemod平台菜单投票。游戏中直接修改这个参数不会生效。", _, true, 0.0, true, 1.0);
 	cv_mapCheck			= CreateConVar("l4d_mapvote_map_check", "1", "地图检查，若开启则不会显示data/l4d_mapvote.cfg中的无效地图。游戏中直接修改这个参数不会生效。（注意：只有服务端才会自动读取addons下的全部三方图，客户端不会。）", _, true, 0.0, true, 1.0);
@@ -288,12 +286,10 @@ void VoteMenu_Select(int client, bool all=false)
 		return;
 	}
 
-	if (cv_checkGamemode.IntValue == 1
-	&& g_baseMode != INVALID
-	&& !all
-	&& g_baseMode <= g_classCount)
+	int val = g_modeClass.Get(g_baseMode);
+	if (val!=-1 && !all)
 	{
-		g_selected[client] = g_baseMode - 1;
+		g_selected[client] = val;
 		VoteTwoMenu_Select(client, g_selected[client]);
 	}
 	else
