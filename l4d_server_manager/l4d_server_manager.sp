@@ -36,13 +36,18 @@ public void OnPluginStart()
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 
 	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "服务器无人时自动休眠", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
+	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 
 	AutoExecConfig(true, "l4d_server_manager");
 }
 
 public void OnMapStart()
 {
+	if (cv_autoLobby.IntValue == 1)
+	{
+		if (cv_allowLobby.IntValue == 0)
+			cv_allowLobby.SetInt(1);
+	}
 	if (cv_autoHibernate.IntValue == 1)
 	{
 		if (cv_allowBotGame.IntValue == 1)
@@ -61,9 +66,14 @@ public void OnClientPutInServer(int client)
 		if (cv_hostingLobby.IntValue == 1)
 			L4D_LobbyUnreserve();
 	}
+	if (cv_autoHibernate.IntValue == 1)
+	{
+		if (cv_allowBotGame.IntValue == 0)
+			cv_allowBotGame.SetInt(1);
+	}
 }
 
-public void OnClientDisconnect_Post(int client)
+public void OnClientDisconnect(int client)
 {
 	if (IsFakeClient(client))
 		return;
