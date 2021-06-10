@@ -16,14 +16,14 @@ public SharedPlugin:__pl_LinGe_Library =
 }
 
 // 游戏基础模式
-enum BaseModeType {
+enum BaseMode {
 	INVALID = 0,
 	OnCoop,
 	OnVersus,
 	OnSurvival,
 	OnScavenge
 };
-native BaseModeType GetBaseMode(); // 获取当前游戏的基础模式
+native BaseMode GetBaseMode(); // 获取当前游戏的基础模式
 native bool IsOnVersus(); // 当前游戏模式是否是基于对抗
 
 #if !defined REQUIRE_PLUGIN

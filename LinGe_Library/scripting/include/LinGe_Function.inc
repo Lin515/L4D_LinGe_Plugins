@@ -28,12 +28,28 @@ stock int SetKeyValueByClassname(const char[] className, const char[] key, const
 }
 
 // 判断某个插件是否正在运行
-stock bool IsPluginRunning(const char[] file)
+stock bool IsPluginRunning(const char[] fileName)
 {
-	Handle plugin = FindPluginByFile(file);
+	Handle plugin = FindPluginByFile(fileName);
 	if (plugin != INVALID_HANDLE)
 	{
 		if ( GetPluginStatus(plugin) == Plugin_Running )
+			return true;
+		else
+			return false;
+	}
+	else
+		return false;
+}
+
+// 判断某个插件是否已经载入完毕 运行中也视为已载入
+stock bool IsPluginLoaded(const char[] fileName)
+{
+	Handle plugin = FindPluginByFile(fileName);
+	if (plugin != INVALID_HANDLE)
+	{
+		PluginStatus s = GetPluginStatus(plugin);
+		if ( Plugin_Running==s || Plugin_Loaded==s )
 			return true;
 		else
 			return false;
