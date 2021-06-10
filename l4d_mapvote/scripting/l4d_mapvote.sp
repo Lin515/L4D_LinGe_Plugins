@@ -558,7 +558,7 @@ void ChangeMap()
 	g_time = cv_mapchangeDelay.IntValue;
 	if (g_time < 1)
 	{
-		if (g_newMode > 0)
+		if (g_newMode != INVALID)
 			cv_l4dGamemode.SetString(g_modeCode[g_newMode]);
 		ServerCommand("changelevel %s", g_mapCodes[g_newMap]);
 		g_allowMapChange = true;
@@ -576,7 +576,7 @@ public Action tmrChangeMap(Handle timer)
 		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s%s \x04...", g_time--, g_mapNames[g_newMap], g_modeName[g_newMode]);
 		return Plugin_Continue;
 	}
-	if (g_newMode > 0)
+	if (g_newMode != INVALID)
 		cv_l4dGamemode.SetString(g_modeCode[g_newMode]);
 	ServerCommand("changelevel %s", g_mapCodes[g_newMap]);
 	g_allowMapChange = true;
