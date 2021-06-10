@@ -2,10 +2,10 @@
 
 #include <sourcemod>
 #include <adminmenu>
+#include <LinGe_Library>
 #undef REQUIRE_EXTENSIONS
 #include <builtinvotes>
 #define REQUIRE_EXTENSIONS
-#include <LinGe_Library>
 
 #define CONFIG_MAPVOTE			"data/l4d_mapvote.cfg"
 
@@ -19,6 +19,7 @@ public Plugin myinfo = {
 
 TopMenu g_hCvarMenuMenu;
 
+ConVar cv_l4dGamemode;
 ConVar cv_checkGamemode; // 是否直接显示当前游戏模式支持的地图
 ConVar cv_allowChangeMode; // 是否允许插件改变游戏模式
 ConVar cv_useBuiltinvotes; // 是否使用扩展发起原版投票开关
@@ -34,7 +35,7 @@ bool g_allowMapChange = true; // 当前是否允许插件发起地图更改
 bool g_isMapChange[MAXPLAYERS+1]; // 记录本次指令是否是mapchange
 
 BaseMode g_baseMode = INVALID;
-ArrayList g_classIndex;
+ArrayList g_modeClass;
 int g_selected[MAXPLAYERS+1];
 char g_mapCodes[1024][64], g_mapNames[1024][64];
 int g_mapCount;
@@ -63,6 +64,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_mapchange", CommandChange,	ADMFLAG_ROOT, "管理员直接更换地图无需经过投票");
 	RegConsoleCmd("sm_mapvote", CommandVote, "打开投票换图菜单");
 
+	cv_l4dGamemode		= FindConVar("mp_gamemode");
 	cv_checkGamemode	= CreateConVar("l4d_mapvote_check_gamemode", "1", "是否直接显示当前游戏模式所支持的地图？（获取游戏模式需要安装LinGe_Library.smx。此外，插件无法检测地图支持哪些模式，你需要自己在data/l4d_mapvote.cfg中配置）", _, true, 0.0, true, 1.0);
 	cv_allowChangeMode	= CreateConVar("l4d_mapvote_allow_changemode", "1", "当要更换的地图指定模式与当前游戏模式不符时，是否允许插件改变为指定游戏模式", _, true, 0.0, true, 1.0);
 	cv_useBuiltinvotes	= CreateConVar("l4d_mapvote_use_builtinvotes", "1", "是否使用builtinvotes扩展发起原版投票？开启情况下，若扩展未正常加载仍会使用sourcemod平台菜单投票。游戏中直接修改这个参数不会生效。", _, true, 0.0, true, 1.0);
@@ -77,8 +79,8 @@ public void OnPluginStart()
 
 	if ( GetExtensionFileStatus("builtinvotes.ext") == 1 )
 		g_isBuiltinvotesLoaded = true;
-	
-	g_classIndex = CreateArray();
+
+	g_modeClass = CreateArray();
 }
 
 // 不编写游戏中途重新读取地图列表的功能，因为读取量太大时会造成短暂的卡顿
@@ -147,9 +149,9 @@ void LoadConfig()
 
 	g_mapCount = 0;
 	g_classCount = -1;
-	g_classIndex.clear();
+	g_modeClass.Clear();
 	for (int i=0; i<5; i++)
-		g_classIndex.Push(-1);
+		g_modeClass.Push(-1);
 	if (FileExists(sPath))
 		ParseConfigFile(sPath); // 读取data/l4d_mapvote.cfg中的地图
 	else
@@ -195,7 +197,7 @@ public SMCResult Config_KeyValue(Handle parser, const char[] key, const char[] v
 	{
 		int val = StringToInt(value);
 		if (val >= 1 && val <= 4)
-			g_classIndex.Set(val, g_classCount-1);
+			g_modeClass.Set(val, g_classCount-1);
 		return SMCParse_Continue;
 	}
 	if (!IsMapValid(value) && g_isMapCheck == 1)
@@ -371,16 +373,28 @@ public int VoteMenuTwoMenur_Select(Menu menu, MenuAction action, int client, int
 	}
 }
 
+char g_modeName[5][20] = {"", "[战役模式]", "[对抗模式]", "[生还者模式]", "[清道夫模式]"};
+char g_modeCode[5][20] = {"", "coop", "versus", "survival", "scavenge"};
+int g_newMap = -1;
+BaseMode g_newMode = INVALID;
 // 已选择指定地图
 void MapSelect(int client, int selectedMap, int selectedClass)
 {
-	BaseMode mode = INVALID;
+	g_newMap = selectedMap;
+	g_newMode = INVALID;
 	if (cv_allowChangeMode.IntValue == 1)
 	{
-		int idx = g_classIndex.FindValue(selectedClass);
+		// 查找是否定义指定模式地图列表
+		int idx = g_modeClass.FindValue(selectedClass);
 		if (idx != -1)
-			mode = idx;
+		{
+			g_newMode = idx;
+			// 如果指定模式与当前模式一致则无需更换模式
+			if (g_newMode == g_baseMode)
+				g_newMode = INVALID;
+		}
 	}
+
 	if ( g_isMapChange[client] )
 	{
 		if (_IsVoteInProgress())
@@ -389,18 +403,17 @@ void MapSelect(int client, int selectedMap, int selectedClass)
 			PrintToChatAll("\x04管理员已选择地图，本次投票取消");
 			_CancelVote();
 		}
-		ChangeMapTo(selectedMap, selectedClass);
+		ChangeMap();
 	}
 	else
-		StartVote(client, selectedMap, selectedClass);
+		StartVote(client);
 }
 
+// 投票
 Handle g_voteExt;
 int g_iNumPlayers = 0;
 int g_iPlayers[MAXPLAYERS];
-int g_changemapTo = -1;
-int g_selectedClass = -1;
-void StartVote(int client, int imap, BaseMode iclass)
+void StartVote(int client)
 {
 	if (GetClientTeam(client) == 1)
 	{
@@ -414,12 +427,10 @@ void StartVote(int client, int imap, BaseMode iclass)
 	}
 
 	// 开始发起投票
-	g_changemapTo = imap;
-	g_selectedClass = iclass;
 	g_isAdminPass = false;
 	g_iNumPlayers = 0;
 	char sBuffer[128];
-	Format(sBuffer, sizeof(sBuffer), "是否同意更换地图为 %s ?", g_mapNames[imap]);
+	Format(sBuffer, sizeof(sBuffer), "是否同意更换地图为 %s%s ?", g_mapNames[g_newMap], g_modeName[g_newMode]);
 
 	for (int i=1; i<=MaxClients; i++)
 	{
@@ -448,7 +459,7 @@ void StartVote(int client, int imap, BaseMode iclass)
 public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1, param2)
 {
 	char sBuffer[128];
-	Format(sBuffer, sizeof(sBuffer), "即将更换地图为 %s .", g_mapNames[g_changemapTo]);
+	Format(sBuffer, sizeof(sBuffer), "即将更换地图为 %s%s .", g_mapNames[g_newMap], g_modeName[g_newMode]);
 	switch (action)
 	{
 		// 已完成投票
@@ -458,7 +469,7 @@ public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1,
 			{
 				DisplayBuiltinVotePass(vote, sBuffer);
 				// 延时3秒再发起换图指令，因为投票通过的显示具有延迟
-				CreateTimer(3.0, delayChangeMap, g_changemapTo);
+				CreateTimer(3.0, delayChangeMap);
 			}
 			else if (param1 == BUILTINVOTES_VOTE_NO)
 			{
@@ -477,7 +488,7 @@ public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1,
 			if (g_isAdminPass)
 			{
 				DisplayBuiltinVotePass(vote, sBuffer);
-				CreateTimer(3.0, delayChangeMap, g_changemapTo);
+				CreateTimer(3.0, delayChangeMap);
 			}
 			else
 				DisplayBuiltinVoteFail(vote, BuiltinVoteFailReason:param1);
@@ -507,7 +518,7 @@ public int Vote_ActionHandler_Menu(Menu menu, MenuAction action, int param1, int
 			if (yes > g_iNumPlayers-yes)
 			{
 				PrintToChatAll("\x04同意票数\x03 %d\x04，否定票数\x03 %d\x04，本次投票通过", yes, g_iNumPlayers-yes);
-				ChangeMapTo(g_changemapTo);
+				ChangeMap();
 			}
 			else
 			{
@@ -523,7 +534,7 @@ public int Vote_ActionHandler_Menu(Menu menu, MenuAction action, int param1, int
 				PrintToChatAll("\x04所有人弃权投票，本次投票未通过");
 			}
 			else if (VoteCancel_Generic == param1 && g_isAdminPass)
-				ChangeMapTo(g_changemapTo);
+				ChangeMap();
 		}
 		case MenuAction_End:
 		{
@@ -534,36 +545,40 @@ public int Vote_ActionHandler_Menu(Menu menu, MenuAction action, int param1, int
 
 
 // 延时更换地图
-public Action delayChangeMap(Handle timer, any imap)
+public Action delayChangeMap(Handle timer)
 {
 	g_allowMapChange = false;
-	ChangeMapTo(imap);
+	ChangeMap();
 }
 
 int g_time;
-void ChangeMapTo(int imap)
+void ChangeMap()
 {
-	g_time = cv_mapchangeDelay.IntValue;
 	g_allowMapChange = false;
+	g_time = cv_mapchangeDelay.IntValue;
 	if (g_time < 1)
 	{
-		ServerCommand("changelevel %s", g_mapCodes[imap]);
+		if (g_newMode > 0)
+			cv_l4dGamemode.SetString(g_modeCode[g_newMode]);
+		ServerCommand("changelevel %s", g_mapCodes[g_newMap]);
 		g_allowMapChange = true;
 	}
 	else
 	{
-		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
-		CreateTimer(1.0, tmrChangeMap, imap, TIMER_REPEAT);
+		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s%s \x04...", g_time--, g_mapNames[g_newMap], g_modeName[g_newMode]);
+		CreateTimer(1.0, tmrChangeMap, _, TIMER_REPEAT);
 	}
 }
-public Action tmrChangeMap(Handle timer, any imap)
+public Action tmrChangeMap(Handle timer)
 {
 	if (g_time > 0)
 	{
-		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s \x04...", g_time--, g_mapNames[imap]);
+		PrintToChatAll("\x04将在 \x03%i \x04秒后更换地图为\x03 %s%s \x04...", g_time--, g_mapNames[g_newMap], g_modeName[g_newMode]);
 		return Plugin_Continue;
 	}
-	ServerCommand("changelevel %s", g_mapCodes[imap]);
+	if (g_newMode > 0)
+		cv_l4dGamemode.SetString(g_modeCode[g_newMode]);
+	ServerCommand("changelevel %s", g_mapCodes[g_newMap]);
 	g_allowMapChange = true;
 	return Plugin_Stop;
 }
