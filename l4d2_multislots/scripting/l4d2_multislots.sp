@@ -138,7 +138,6 @@ public Action Cmd_away(int client, int args)
 			PrintToChat(client, "\x04你已经是旁观者了");
 		return Plugin_Handled;
 	}
-
 	if (GetClientTeam(client) == 2)
 		g_noAutoJoin[client] = true;
 	ChangeClientTeam(client, 1);
@@ -218,6 +217,8 @@ public Action Cmd_joingame(int client, int args)
 			PrintToChat(client, "\x04你已经是生还者了");
 		case -5:
 			PrintToChat(client, "\x04你当前是闲置状态，请点击鼠标左键加入游戏");
+		case -7:
+			PrintToChat(client, "\x04当前有玩家尚未载入完毕，当所有玩家载入完毕时你将自动加入生还者");
 	}
 	return Plugin_Handled;
 }
@@ -376,9 +377,10 @@ public void OnConfigsExecuted()
 	if (-1 == g_maxplayers)
 		g_maxplayers = cv_maxs.IntValue;
 	if (cv_allowSset.IntValue==1 && cv_svmaxplayers!=null)
-	{
 		cv_svmaxplayers.SetInt(g_maxplayers);
-	}
+
+	g_isFirstSet = false;
+	g_allPlayerLoaded = false;
 }
 
 // 游戏中途离线 无需判断是不是BOT
@@ -396,11 +398,18 @@ public void OnClientPutInServer(client)
 		return;
 	if (IsFakeClient(client))
 		return;
+	if (cv_autoJoin.IntValue==1 && !g_noAutoJoin[client])
+		CreateTimer(1.0, Timer_AutoJoinSurvivor, client);
 	g_lastTpTime[client] = 0;
 	// 只有当第一个玩家进入游戏以后，物资实体才会生成
 	g_isFirstSet = true;
 	CreateTimer(1.0, Timer_FirstSetMultipe);
 }
+public Action Timer_AutoJoinSurvivor(Handle timer, any client)
+{
+	JoinSurvivor(client);
+}
+
 public Action Timer_FirstSetMultipe(Handle timer)
 {
 	int nowMultiple = g_nowMultiple;
@@ -411,8 +420,6 @@ public Action Timer_FirstSetMultipe(Handle timer)
 
 public Action Event_round_start(Event event, const char[] name, bool dontBroadcast)
 {
-	g_isFirstSet = false;
-	g_allPlayerLoaded = false;
 	CreateTimer(1.0, Timer_CheckPlayerInGame, _, TIMER_REPEAT);
 }
 // 当所有玩家载入完毕之后
@@ -421,6 +428,12 @@ public Action Timer_CheckPlayerInGame(Handle timer, any data)
 	if (IsAllHumanInGame())
 	{
 		g_allPlayerLoaded = true;
+		// 让玩家自动加入生还者
+		for (int i=1; i<=MaxClients; i++)
+		{
+			if (!g_noAutoJoin[i])
+				JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
+		}
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
@@ -439,37 +452,20 @@ public Action Event_round_end(Event event, const char[] name, bool dontBroadcast
 public Action Event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-	int oldteam = event.GetInt("oldteam");
-	int team = event.GetInt("team");
 
-	if (!IsValidClient(client))
-		return Plugin_Continue;
-	if (IsFakeClient(client))
-		return Plugin_Continue;
-
-	// 自动更改物资倍数需所有玩家已完成载入
-	if (g_allPlayerLoaded && cv_autoMultiple.IntValue == 1)
-		CreateTimer(0.5, Timer_SetMultiple);
-
-	if (oldteam==0 && team!=2)
+	if (IsValidClient(client))
 	{
-		if (cv_autoJoin.IntValue==1 && !g_noAutoJoin[client])
-			CreateTimer(1.0, Timer_AutoJoinSurvivor, client, TIMER_REPEAT);
+		if (!IsFakeClient(client))
+		{
+			// 自动更改物资倍数需所有玩家已完成载入
+			if (g_allPlayerLoaded && cv_autoMultiple.IntValue == 1)
+				CreateTimer(0.5, Timer_SetMultiple);
+		}
 	}
-	return Plugin_Continue;
 }
 public Action Timer_SetMultiple(Handle timer)
 {
 	SetMultiple();
-}
-public Action Timer_AutoJoinSurvivor(Handle timer, any client)
-{
-	if (g_allPlayerLoaded)
-	{
-		JoinSurvivor(client);
-		return Plugin_Stop;
-	}
-	return Plugin_Continue;
 }
 
 void SsetMenuDisplay(int client)
@@ -619,10 +615,13 @@ int JoinSurvivor(client)
 		return -6;
 	if (IsFakeClient(client)) // 不允许BOT通过此函数加入生还
 		return -3;
+	g_noAutoJoin[client] = false;
 	if (GetClientTeam(client) == 2) // client已经是生还
 		return -4;
 	if (IsClientIdle(client)) // client处于闲置
 		return -5;
+	if (!g_allPlayerLoaded)
+		return -7;
 
 	if (0 < GetAliveBotSurvivors())
 	{
