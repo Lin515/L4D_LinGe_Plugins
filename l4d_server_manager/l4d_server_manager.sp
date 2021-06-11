@@ -88,6 +88,11 @@ public void OnClientDisconnect(int client)
 {
 	if (IsFakeClient(client))
 		return;
+	CreateTimer(0.1, Timer_CheckHasHuman);
+}
+
+public Action Timer_CheckHasHuman(Handle timer)
+{
 	if (GetHumans() == 0)
 	{
 		if (cv_autoLobby.IntValue == 1)
