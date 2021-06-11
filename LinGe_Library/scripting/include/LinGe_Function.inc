@@ -83,8 +83,11 @@ stock bool IsAllHumanInGame()
 	for (int i=1; i<=MaxClients; i++)
 	{
 		// 若存在已连接且不是BOT，但尚未在游戏中的玩家
-		if (IsClientConnected(i) && !IsFakeClient(i) && !IsClientInGame(i))
-			return false;
+		if (IsClientConnected(i) && !IsClientInGame(i))
+		{
+			if (!IsFakeClient(i))
+				return false;
+		}
 	}
 	return true;
 }
@@ -126,7 +129,7 @@ stock int GetHumans()
 	{
 		if (IsClientInGame(i))
 		{
-			if(!IsFakeClient(i))
+			if (!IsFakeClient(i))
 				numplayers++;
 		}
 	}
