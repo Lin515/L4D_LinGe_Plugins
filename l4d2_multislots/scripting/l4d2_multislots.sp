@@ -633,7 +633,7 @@ int JoinSurvivor(client)
 	{
 		int ret = AddBot();
 		if (0 == ret)
-			CreateTimer(1.0, Timer_Jointeam2, client);
+			CreateTimer(0.5, Timer_Jointeam2, client);
 		return ret;
 	}
 }
