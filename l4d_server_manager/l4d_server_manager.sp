@@ -55,14 +55,25 @@ public void OnMapStart()
 	}
 }
 
+public bool OnClientConnect(int client)
+{
+	if (!IsFakeClient(client))
+	{
+		if (cv_autoLobby.IntValue == 1)
+		{
+			if (cv_allowLobby.IntValue == 1)
+				cv_allowLobby.SetInt(0);
+		}
+	}
+	return true;
+}
+
 public void OnClientPutInServer(int client)
 {
 	if (IsFakeClient(client))
 		return;
 	if (cv_autoLobby.IntValue == 1)
 	{
-		if (cv_allowLobby.IntValue == 1)
-			cv_allowLobby.SetInt(0);
 		if (cv_hostingLobby.IntValue == 1)
 			L4D_LobbyUnreserve();
 	}
