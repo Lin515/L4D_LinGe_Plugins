@@ -60,7 +60,6 @@ stock bool IsPluginRunning(const char[] name)
 // 判断某个插件是否已经载入完毕 allowRunning为允许将运行中的插件也视为已载入
 stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 {
-{
 	Handle iter = GetPluginIterator();
 	Handle plugin = INVALID_HANDLE;
 	PluginStatus status;

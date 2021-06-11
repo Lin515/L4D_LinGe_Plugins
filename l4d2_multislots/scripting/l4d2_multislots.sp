@@ -28,6 +28,7 @@ ConVar cv_allowSset;
 ConVar cv_autoJoin;
 ConVar cv_onlySafeAddBot;
 ConVar cv_autoKickBot;
+ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 
 ArrayList g_autoGive; // 自动给予哪些
@@ -62,7 +63,6 @@ public void OnPluginStart()
 	RegAdminCmd("sm_sset", Cmd_sset, ADMFLAG_ROOT, "设置服务器最大人数");
 	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "自动多倍物资设置");
 	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
-	RegAdminCmd("sm_teamhurt", Cmd_teamhurt);
 
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");

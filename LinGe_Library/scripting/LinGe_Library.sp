@@ -67,7 +67,7 @@ public any Native_IsOnVersus(Handle plugin, int numParams)
 	if (strcmp(gamemode, "mutation15") == 0) // 生还者对抗
 		return true;
 
-	BaseMode baseMode = GetBaseMode();
+	BaseMode baseMode = Native_GetBaseMode(null, 0);
 	if (OnVersus == baseMode)
 		return true;
 	if (OnScavenge == baseMode)
