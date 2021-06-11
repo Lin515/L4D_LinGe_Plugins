@@ -3,7 +3,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Function>
-#include <left4dhooks> // 对left4dhooks的依赖修改为必须
+#include <left4dhooks>
 
 public Plugin myinfo = {
 	name = "多人控制",
@@ -28,6 +28,7 @@ ConVar cv_allowSset;
 ConVar cv_autoJoin;
 ConVar cv_onlySafeAddBot;
 ConVar cv_autoKickBot;
+ConVar cv_tpLimit;
 
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
@@ -37,6 +38,7 @@ bool g_allPlayerLoaded = false; // 开局检测所有玩家是否已经载入完
 bool g_isFirstSet = false; // 是否已在开局设置过一次物资多倍补给
 
 bool g_noAutoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
+int g_lastTpTime[MAXPLAYERS+1] = 0;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -46,12 +48,13 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "本插件只支持 Left 4 Dead 2 ");
 		return APLRes_SilentFailure;
 	}
-	LoadSDKCallFunction();
 	return APLRes_Success;
 }
 
 public void OnPluginStart()
 {
+	LoadSDKCallFunction();
+
 	RegAdminCmd("sm_forceaddbot", Cmd_forceaddbot, ADMFLAG_ROOT, "强制增加一个BOT，无视条件限制");
 	RegAdminCmd("sm_addbot", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");
 	RegAdminCmd("sm_ab", Cmd_addbot, ADMFLAG_KICK, "增加一个BOT");
@@ -59,6 +62,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_sset", Cmd_sset, ADMFLAG_ROOT, "设置服务器最大人数");
 	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "自动多倍物资设置");
 	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
+	RegAdminCmd("sm_teamhurt", Cmd_teamhurt);
 
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");
@@ -68,17 +72,21 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_spec", Cmd_away, "玩家进入旁观");
 	RegConsoleCmd("sm_spectate", Cmd_away, "玩家进入旁观");
 	RegConsoleCmd("sm_afk", Cmd_afk, "快速闲置");
+	RegConsoleCmd("sm_tp", Cmd_tp, "玩家自主传送指令");
 
-	cv_l4dSurvivorLimit = FindConVar("survivor_limit");
-	cv_svmaxplayers =	FindConVar("sv_maxplayers");
-	cv_survivorLimit =	CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_NOTIFY, true, 1.0, true, 32.0);
-	cv_maxs = 			CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_NOTIFY, true, 1.0, true, 32.0);
-	cv_autoGive =		CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品(需使用sm_autogive设置给予哪些物品)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoMultiple =	CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数(需使用sm_mmn设置哪些物资多倍，若不设置则默认将医疗包多倍)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_allowSset =		CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoJoin =		CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_onlySafeAddBot =	CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_autoKickBot =	CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_l4dSurvivorLimit	= FindConVar("survivor_limit");
+	cv_svmaxplayers		= FindConVar("sv_maxplayers");
+	cv_survivorLimit	= CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_NOTIFY, true, 1.0, true, 32.0);
+	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_NOTIFY, true, 1.0, true, 32.0);
+	cv_autoGive			= CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoMultiple		= CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoJoin			= CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_onlySafeAddBot	= CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0：完全禁用 1：仅管理员可用 2：所有人可用", FCVAR_NOTIFY, true, 0.0, true, 2.0);
+	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒。", FCVAR_NOTIFY, true, 0.0);
+
 	AutoExecConfig(true, "l4d2_multislots");
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_autoMultiple.AddChangeHook(AutoMultipleChanged);
@@ -164,6 +172,35 @@ public Action Cmd_afk(int client, int args)
 		else
 			PrintToChat(client, "\x04死亡状态无权使用闲置指令");
 	}
+	return Plugin_Handled;
+}
+public Action Cmd_tp(int client, int args)
+{
+	if (0 == client)
+		return Plugin_Handled;
+
+	if (cv_tpPermission.IntValue == 0)
+	{
+		PrintToChat(client, "\x04服务器未启用传送指令");
+		return Plugin_Handled;
+	}
+	else if (cv_tpPermission.IntValue == 1)
+	{
+		if (0 == GetUserFlagBits(client))
+		{
+			PrintToChat(client, "\x04服务器只允许管理员使用传送指令");
+			return Plugin_Handled;
+		}
+	}
+
+	int diff = GetTime() - g_lastTpTime[client];
+	if (diff < cv_tpLimit.IntValue)
+	{
+		PrintToChat(client, "\x04你需要\x03 %d \x04秒后才能再次使用传送指令", cv_tpLimit.IntValue-diff);
+		return Plugin_Handled;
+	}
+
+	DisplayTpMenu(client);
 	return Plugin_Handled;
 }
 
@@ -349,9 +386,9 @@ public void OnClientDisconnect(int client)
 {
 	if (g_allPlayerLoaded)
 		g_noAutoJoin[client] = false;
+	g_lastTpTime[client] = 0;
 }
 
-// 只有当第一个玩家进入游戏以后，物资实体才会生成，此时设置物资多倍才有效
 public void OnClientPutInServer(client)
 {
 	// 判断是否需要在开局设置一次物资补给
@@ -359,6 +396,8 @@ public void OnClientPutInServer(client)
 		return;
 	if (IsFakeClient(client))
 		return;
+	g_lastTpTime[client] = 0;
+	// 只有当第一个玩家进入游戏以后，物资实体才会生成
 	g_isFirstSet = true;
 	CreateTimer(1.0, Timer_FirstSetMultipe);
 }
@@ -396,7 +435,7 @@ public Action Event_round_end(Event event, const char[] name, bool dontBroadcast
 
 // 玩家刚加入游戏时自动让其加入生还者
 // 若在对抗模式启用本功能所有刚加入游戏的玩家都会自动加入生还者
-// 对抗模式最好不要启用本插件或者禁用本功能
+// 对抗模式最好不要启用本插件或者应该禁用本功能
 public Action Event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
@@ -450,7 +489,6 @@ void SsetMenuDisplay(int client)
 	SetMenuExitButton(menu, true);
 	DisplayMenu(menu, client, 0);
 }
-
 public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemNum)
 {
 	switch (action)
@@ -467,6 +505,52 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 			delete menu;
 	}
 	return 0;
+}
+
+int DisplayTpMenu(int client)
+{
+	char name[MAX_NAME_LENGTH];
+	char rec[10];
+	Menu menu = new Menu(TpMenuHandler);
+	menu.SetTitle("你想传送到谁那里？");
+	for(int i=1; i<=MaxClients; i++)
+	{
+		if(IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == 2 && IsAlive(i) && i != client)
+			{
+				GetClientName(i, name, sizeof(name));
+				IntToString(i, rec, sizeof(rec));
+				menu.AddItem(rec, name);
+			}
+		}
+	}
+	menu.ExitBackButton = false;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+public int TpMenuHandler(Menu menu, MenuAction action, int client, int curSel)
+{
+	switch(action)
+	{
+		case MenuAction_End:
+		{
+			delete menu;
+		}
+		case MenuAction_Select:
+		{
+			char rec[10];
+			if ( menu.GetItem(curSel, rec, sizeof(rec)) )
+			{
+				int target = StringToInt(rec);
+				float vOrigin[3];
+				float vAngles[3];
+				GetClientAbsOrigin(target, vOrigin);
+				GetClientAbsAngles(target, vAngles);
+				TeleportEntity(client, vOrigin, vAngles, NULL_VECTOR);
+				g_lastTpTime[client] = GetTime();
+			}
+		}
+	}
 }
 
 // 设置物资补给倍数，参数为0则根据当前玩家数量自动设置
