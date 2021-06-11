@@ -28,34 +28,66 @@ stock int SetKeyValueByClassname(const char[] className, const char[] key, const
 }
 
 // 判断某个插件是否正在运行
-stock bool IsPluginRunning(const char[] fileName)
+stock bool IsPluginRunning(const char[] name)
 {
-	Handle plugin = FindPluginByFile(fileName);
-	if (plugin != INVALID_HANDLE)
+	Handle iter = GetPluginIterator();
+	Handle plugin = INVALID_HANDLE;
+	PluginStatus status;
+	char buffer[260];
+	bool ret = false;
+	
+	while (MorePlugins(iter))
 	{
-		if ( GetPluginStatus(plugin) == Plugin_Running )
-			return true;
-		else
-			return false;
+		plugin = ReadPlugin(iter);
+		if (GetPluginInfo(plugin, PlInfo_Name, buffer, sizeof(buffer)))
+		{
+			if (StrEqual(name, buffer))
+			{
+				status = GetPluginStatus(plugin);
+				if (Plugin_Running == status)
+					ret = true;
+				else
+					ret = false;
+				break;
+			}
+		}
 	}
-	else
-		return false;
+
+	CloseHandle(plugin);
+	return ret;
 }
 
-// 判断某个插件是否已经载入完毕 运行中也视为已载入
-stock bool IsPluginLoaded(const char[] fileName)
+// 判断某个插件是否已经载入完毕 allowRunning为允许将运行中的插件也视为已载入
+stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 {
-	Handle plugin = FindPluginByFile(fileName);
-	if (plugin != INVALID_HANDLE)
+{
+	Handle iter = GetPluginIterator();
+	Handle plugin = INVALID_HANDLE;
+	PluginStatus status;
+	char buffer[260];
+	bool ret = false;
+	
+	while (MorePlugins(iter))
 	{
-		PluginStatus s = GetPluginStatus(plugin);
-		if ( Plugin_Running==s || Plugin_Loaded==s )
-			return true;
-		else
-			return false;
+		plugin = ReadPlugin(iter);
+		if (GetPluginInfo(plugin, PlInfo_Name, buffer, sizeof(buffer)))
+		{
+			if (StrEqual(name, buffer))
+			{
+				status = GetPluginStatus(plugin);
+				if (Plugin_Loaded == status)
+					ret = true;
+				else if (Plugin_Running == status && allowRunning)
+					ret = true;
+				else
+					ret = false;
+				break;
+			}
+		}
 	}
-	else
-		return false;
+
+	CloseHandle(plugin);
+	return ret;
 }
 
 // 是否是有效Client
@@ -226,7 +258,7 @@ stock int GetSpectators()
 	int numaways = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i)) 
+		if (IsClientInGame(i))
 		{
 			if (GetClientTeam(i) == 1 && !IsFakeClient(i)) // 不知道有没有出现BOT在旁观的可能，总之加了这个判断不会错
 				numaways++;
