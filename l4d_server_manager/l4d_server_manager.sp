@@ -44,15 +44,9 @@ public void OnPluginStart()
 public void OnMapStart()
 {
 	if (cv_autoLobby.IntValue == 1)
-	{
-		if (cv_allowLobby.IntValue == 0)
-			cv_allowLobby.SetInt(1);
-	}
+		cv_allowLobby.SetInt(1);
 	if (cv_autoHibernate.IntValue == 1)
-	{
-		if (cv_allowBotGame.IntValue == 1)
-			cv_allowBotGame.SetInt(0);
-	}
+		cv_allowBotGame.SetInt(0);
 }
 
 public bool OnClientConnect(int client)
@@ -60,10 +54,7 @@ public bool OnClientConnect(int client)
 	if (!IsFakeClient(client))
 	{
 		if (cv_autoLobby.IntValue == 1)
-		{
-			if (cv_allowLobby.IntValue == 1)
-				cv_allowLobby.SetInt(0);
-		}
+			cv_allowLobby.SetInt(0);
 	}
 	return true;
 }
@@ -72,16 +63,10 @@ public void OnClientPutInServer(int client)
 {
 	if (IsFakeClient(client))
 		return;
-	if (cv_autoLobby.IntValue == 1)
-	{
-		if (cv_hostingLobby.IntValue == 1)
-			L4D_LobbyUnreserve();
-	}
+	if (cv_autoLobby.IntValue == 1 && cv_hostingLobby.IntValue == 1)
+		L4D_LobbyUnreserve();
 	if (cv_autoHibernate.IntValue == 1)
-	{
-		if (cv_allowBotGame.IntValue == 0)
-			cv_allowBotGame.SetInt(1);
-	}
+		cv_allowBotGame.SetInt(1);
 }
 
 public void OnClientDisconnect(int client)
@@ -96,15 +81,9 @@ public Action Timer_CheckHasHuman(Handle timer)
 	if (GetHumans() == 0)
 	{
 		if (cv_autoLobby.IntValue == 1)
-		{
-			if (cv_allowLobby.IntValue == 0)
-				cv_allowLobby.SetInt(1);
-		}
+			cv_allowLobby.SetInt(1);
 
 		if (cv_autoHibernate.IntValue == 1)
-		{
-			if (cv_allowBotGame.IntValue == 1)
-				cv_allowBotGame.SetInt(0);
-		}
+			cv_allowBotGame.SetInt(0);
 	}
 }
