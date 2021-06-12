@@ -2,8 +2,78 @@
 	#endinput
 #endif
 #define _LinGe_Function_included_
-
 // 一些常用函数
+
+// 在char[][] arr中查找指定字符串
+// 测试可用 但会出现编译警告 warning 219: local variable "arr" shadows a variable at a preceding level
+// 我不太清楚这个警告的意义 如果觉得烦人可以在编译时给 spcomp 添加参数 -w 219 屏蔽这个警告
+stock int IndexString(const char[] str, const char[][] arr, int size, int srtidx=0, bool reverse=false, bool caseSensitive=true, bool equal=true)
+{
+	if (srtidx >= size || srtidx < 0)
+	{
+		LogError("索引溢出 srtidx=%d size=%d", srtidx, size);
+		return -2;
+	}
+	if (reverse)
+	{
+		for (int i=srtidx; i>=0; i--)
+		{
+			if (equal)
+			{
+				if (strcmp(str, arr[i], caseSensitive) == 0)
+					return i;
+			}
+			else
+			{
+				if (StrContains(str, arr[i], caseSensitive) != -1)
+					return i;
+			}
+		}
+	}
+	else
+	{
+		for (int i=srtidx; i<size; i++)
+		{
+			if (equal)
+			{
+				if (strcmp(str, arr[i], caseSensitive) == 0)
+					return i;
+			}
+			else
+			{
+				if (StrContains(str, arr[i], caseSensitive) != -1)
+					return i;
+			}
+		}
+	}
+	return -1;
+}
+// 在any arr中查找指定数据
+stock int IndexData(any data, const any[] arr, int size, int srtidx=0, bool reverse=false)
+{
+	if (srtidx >= size || srtidx < 0)
+	{
+		LogError("索引溢出 srtidx=%d size=%d", srtidx, size);
+		return -2;
+	}
+	if (reverse)
+	{
+		for (int i=srtidx; i>=0; i--)
+		{
+			if (data == arr[i])
+				return i;
+		}
+	}
+	else
+	{
+		for (int i=srtidx; i<size; i++)
+		{
+			if (data == arr[i])
+				return i;
+		}
+	}
+	return -1;
+}
 
 // 执行一次带有FCVAR_CHEAT标识的指令
 stock void BypassAndExecuteCommand(int client, const char[] cmd, const char[] params)

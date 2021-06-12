@@ -1,6 +1,5 @@
 #include <sourcemod>
-#include <adminmenu>
-#include <LinGe_Library>
+#include <LinGe_Function>
 
 public Plugin myinfo = {
 	name = "插件名",

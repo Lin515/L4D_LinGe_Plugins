@@ -33,7 +33,7 @@ ConVar cv_tpLimit;
 
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
-int g_maxplayers = -1;
+int g_maxplayers = -999;
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allPlayerLoaded = false; // 开局检测所有玩家是否已经载入完毕
 bool g_isFirstHumanPutInServer = false; // 第一个玩家是否已经载入
@@ -80,12 +80,12 @@ public void OnPluginStart()
 	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_NOTIFY, true, 1.0, true, 32.0);
 	cv_autoGive			= CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	cv_autoMultiple		= CreateConVar("l4d2_multislots_auto_multiple", "1", "根据人数自动设置物资倍数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？若启用则在游戏过程中也可以使用!sset指令来修改最大人数", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？0:不允许 1:允许且允许其它方式修改最大人数 2:只允许本插件控制最大人数", FCVAR_NOTIFY, true, 0.0, true, 2.0);
 	cv_autoJoin			= CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	cv_onlySafeAddBot	= CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0：完全禁用 1：仅管理员可用 2：所有人可用", FCVAR_NOTIFY, true, 0.0, true, 2.0);
-	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒。", FCVAR_NOTIFY, true, 0.0);
+	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_NOTIFY, true, 0.0, true, 2.0);
+	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_NOTIFY, true, 0.0);
 
 	AutoExecConfig(true, "l4d2_multislots");
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
@@ -150,29 +150,24 @@ public Action Cmd_afk(int client, int args)
 {
 	if (0 == client)
 		return Plugin_Handled;
+
 	if (GetClientTeam(client) == 1)
 	{
 		if (IsClientIdle(client))
 			PrintToChat(client, "\x04你当前已经是闲置状态");
 		else
 			PrintToChat(client, "\x04你已经是旁观者了");
-		return Plugin_Handled;
 	}
-
-	if (GetClientTeam(client) != 2)
+	else if (GetClientTeam(client) != 2)
 		PrintToChat(client, "\x04闲置指令只限生还者使用");
+	else if (!IsPlayerAlive(client))
+		PrintToChat(client, "\x04死亡状态无权使用闲置");
+	else if (GetEntProp(client, Prop_Send, "m_isIncapacitated"))
+		PrintToChat(client, "\x04倒地时无法使用闲置");
+	else if (GetHumanSurvivors() == 1)
+		PrintToChat(client, "\x04只有一名玩家时无法使用闲置");
 	else
-	{
-		if (IsPlayerAlive(client))
-		{
-			if (GetEntProp(client, Prop_Send, "m_isIncapacitated"))
-				PrintToChat(client, "\x04倒地时无法使用闲置指令");
-			else
-				FakeClientCommand(client, "go_away_from_keyboard");
-		}
-		else
-			PrintToChat(client, "\x04死亡状态无权使用闲置指令");
-	}
+		FakeClientCommand(client, "go_away_from_keyboard");
 	return Plugin_Handled;
 }
 public Action Cmd_tp(int client, int args)
@@ -239,7 +234,7 @@ public Action Cmd_sset(int client, int args)
 	{
 		if (null == cv_svmaxplayers)
 			PrintToChat(client, "\x04未能捕捉到\x03 sv_maxplayers");
-		else if (cv_allowSset.IntValue == 1)
+		else if (cv_allowSset.IntValue >= 0)
 			SsetMenuDisplay(client);
 		else
 			PrintToChat(client, "\x04服务器人数控制未开启");
@@ -315,7 +310,7 @@ public Action Cmd_autogive(int client, int args)
 		{
 			int len = g_autoGive.Length;
 			if (0 == len)
-				PrintToServer("未设置自动给予的物品");
+				PrintToServer("未设置自动给予的物品，将默认给予MP5");
 			else
 			{
 				for (int i=0; i<len; i++)
@@ -374,15 +369,20 @@ public void SurvivorLimitChanged(ConVar convar, const char[] oldValue, const cha
 }
 public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	g_maxplayers = StringToInt(newValue);
+	// 若只允许本插件修改最大人数，则将最大人数始终锁定为本插件中的值
+	// 否则则以最后更新的值为准
+	if (cv_allowSset.IntValue == 2)
+		cv_svmaxplayers.SetInt(g_maxplayers);
+	else
+		g_maxplayers = StringToInt(newValue);
 }
 
 
 public void OnConfigsExecuted()
 {
-	if (-1 == g_maxplayers)
+	if (-999 == g_maxplayers)
 		g_maxplayers = cv_maxs.IntValue;
-	if (cv_allowSset.IntValue==1 && cv_svmaxplayers!=null)
+	if (cv_allowSset.IntValue>=1 && cv_svmaxplayers!=null)
 		cv_svmaxplayers.SetInt(g_maxplayers);
 
 	g_isFirstHumanPutInServer = false;
@@ -500,7 +500,8 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 		{
 			char clientinfos[20];
 			GetMenuItem(menu, itemNum, clientinfos, sizeof(clientinfos));
-			cv_svmaxplayers.SetInt(StringToInt(clientinfos));
+			g_maxplayers = StringToInt(clientinfos);
+			cv_svmaxplayers.SetInt(g_maxplayers);
 			PrintToChatAll("\x04更改服务器的最大人数为\x04 \x03%i \x05人", cv_svmaxplayers.IntValue);
 		}
 		case MenuAction_End:
@@ -638,7 +639,7 @@ int JoinSurvivor(client)
 	{
 		int ret = AddBot();
 		if (0 == ret)
-			CreateTimer(0.5, Timer_Jointeam2, client);
+			CreateTimer(1.0, Timer_Jointeam2, client);
 		return ret;
 	}
 }
@@ -667,30 +668,31 @@ int AddBot(bool force=false)
 	// 如果新BOT是死亡的则复活它
 	if (!IsAlive(survivorbot))
 		SDKCall(h_RoundRespawn, survivorbot);
-
-	// 传送BOT
-	for (int i=1; i<=MaxClients; i++)
+	
+	// 如果已经有人离开安全区
+	if (L4D_HasAnySurvivorLeftSafeArea())
 	{
-		if (IsClientInGame(i))
+		// 传送
+		for (int i=1; i<=MaxClients; i++)
 		{
-			if (GetClientTeam(i) == 2 && survivorbot!=i && IsAlive(i))
+			if (IsClientInGame(i))
 			{
-				float vOrigin[3] = 0.0;
-				float vAngles[3] = 0.0;
-				GetClientAbsOrigin(i, vOrigin);
-				GetClientAbsAngles(i, vAngles);
-				TeleportEntity(survivorbot, vOrigin, vAngles, NULL_VECTOR);
-				break;
+				if (GetClientTeam(i) == 2 && survivorbot!=i && IsAlive(i))
+				{
+					float vOrigin[3] = 0.0;
+					float vAngles[3] = 0.0;
+					GetClientAbsOrigin(i, vOrigin);
+					GetClientAbsAngles(i, vAngles);
+					TeleportEntity(survivorbot, vOrigin, vAngles, NULL_VECTOR);
+					break;
+				}
 			}
 		}
+		// 给予物品
+		if (cv_autoGive.IntValue == 1)
+			GivePlayerSupply(survivorbot);
 	}
-
-	// 给予物品
-	if (cv_autoGive.IntValue == 1 && L4D_HasAnySurvivorLeftSafeArea())
-	{
-		GivePlayerSupply(survivorbot);
-	}
-	KickClient(survivorbot, "Cmd_addbot..");
+	KickClient(survivorbot, "");	
 	return 0;
 }
 
@@ -700,11 +702,16 @@ void GivePlayerSupply(int client)
 		return;
 	int len = g_autoGive.Length;
 	char buffer[40];
-	for (int i=0; i<len; i++)
+	if (len > 0)
 	{
-		g_autoGive.GetString(i, buffer, sizeof(buffer));
-		BypassAndExecuteCommand(client, "give", buffer);
+		for (int i=0; i<len; i++)
+		{
+			g_autoGive.GetString(i, buffer, sizeof(buffer));
+			BypassAndExecuteCommand(client, "give", buffer);
+		}
 	}
+	else
+		BypassAndExecuteCommand(client, "give", "smg_mp5");
 }
 
 // 当前在线的玩家数量（生还+旁观+闲置）
