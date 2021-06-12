@@ -53,7 +53,7 @@ stock bool IsPluginRunning(const char[] name)
 		}
 	}
 
-	CloseHandle(plugin);
+	CloseHandle(iter);
 	return ret;
 }
 
@@ -85,7 +85,7 @@ stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 		}
 	}
 
-	CloseHandle(plugin);
+	CloseHandle(iter);
 	return ret;
 }
 
@@ -181,6 +181,21 @@ stock int GetSurvivors()
 		if (IsClientInGame(i))
 		{
 			if (GetClientTeam(i) == 2)
+				numSurvivors++;
+		}
+	}
+	return numSurvivors;
+}
+
+// 真实玩家生还者数
+stock int GetHumanSurvivors()
+{
+	int numSurvivors = 0;
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == 2 && !IsFakeClient(i))
 				numSurvivors++;
 		}
 	}
