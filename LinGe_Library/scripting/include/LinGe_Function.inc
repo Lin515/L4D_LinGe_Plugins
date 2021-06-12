@@ -90,11 +90,13 @@ stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 }
 
 // 是否是有效Client
-stock bool IsValidClient(int client)
+stock bool IsValidClient(int client, bool noNeedInGame=false)
 {
 	if (client < 1 || client > MaxClients)
 		return false;
-	if (!IsClientConnected(client) || !IsClientInGame(client))
+	if (!IsClientConnected(client))
+		return false;
+	if (!noNeedInGame && !IsClientInGame(client))
 		return false;
 	return true;
 }
@@ -129,7 +131,10 @@ stock bool IsAllHumanInGame()
 // 若返回>0，则说明有真实玩家就位，并且返回值为其真实玩家client
 stock int GetHumanClient(int client)
 {
-	return GetClientOfUserId(GetEntProp(client, Prop_Send, "m_humanSpectatorUserID"));
+	if (IsAlive(client))
+		return GetClientOfUserId(GetEntProp(client, Prop_Send, "m_humanSpectatorUserID"));
+	else
+		return 0;
 }
 
 // 玩家是否处于闲置（旁观不算）
@@ -153,14 +158,14 @@ stock bool IsClientIdle(int client)
 }
 
 // 当前在线的全部真实玩家数
-stock int GetHumans()
+stock int GetHumans(bool noNeedInGame=false)
 {
 	int numplayers = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i))
+		if (IsClientConnected(i) && !IsFakeClient(i))
 		{
-			if (!IsFakeClient(i))
+			if (IsClientInGame(i) || noNeedInGame)
 				numplayers++;
 		}
 	}
@@ -225,7 +230,7 @@ stock int GetAliveBotSurvivors()
 		{
 			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{
-				if (GetHumanClient(i) == 0 && IsAlive(i))
+				if (IsAlive(i) && GetHumanClient(i) == 0)
 					AnumBots++;
 			}
 		}

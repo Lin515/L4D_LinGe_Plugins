@@ -36,7 +36,7 @@ ArrayList g_supply; // 哪些启用多倍物资补给
 int g_maxplayers = -1;
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allPlayerLoaded = false; // 开局检测所有玩家是否已经载入完毕
-bool g_isFirstSet = false; // 是否已在开局设置过一次物资多倍补给
+bool g_isFirstHumanPutInServer = false; // 第一个玩家是否已经载入
 
 bool g_noAutoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
 int g_lastTpTime[MAXPLAYERS+1] = 0;
@@ -92,6 +92,8 @@ public void OnPluginStart()
 	cv_autoMultiple.AddChangeHook(AutoMultipleChanged);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
+	if (null != cv_svmaxplayers)
+		cv_svmaxplayers.AddChangeHook(MaxplayersChanged);
 
 	HookEvent("round_start", Event_round_start, EventHookMode_PostNoCopy);
 	HookEvent("map_transition", Event_round_end, EventHookMode_Pre);
@@ -366,11 +368,15 @@ public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char
 	else
 		SetMultiple(1);
 }
-
 public void SurvivorLimitChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	cv_l4dSurvivorLimit.SetInt(cv_survivorLimit.IntValue);
 }
+public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	g_maxplayers = StringToInt(newValue);
+}
+
 
 public void OnConfigsExecuted()
 {
@@ -379,37 +385,37 @@ public void OnConfigsExecuted()
 	if (cv_allowSset.IntValue==1 && cv_svmaxplayers!=null)
 		cv_svmaxplayers.SetInt(g_maxplayers);
 
-	g_isFirstSet = false;
+	g_isFirstHumanPutInServer = false;
 	g_allPlayerLoaded = false;
 }
 
-// 游戏中途离线 无需判断是不是BOT
 public void OnClientDisconnect(int client)
 {
+// 游戏中途离线 重置其数据无需判断是不是BOT
 	if (g_allPlayerLoaded)
 		g_noAutoJoin[client] = false;
 	g_lastTpTime[client] = 0;
 }
 
-public void OnClientPutInServer(client)
+public void OnClientPutInServer(int client)
 {
-	// 判断是否需要在开局设置一次物资补给
-	if (g_isFirstSet)
-		return;
 	if (IsFakeClient(client))
 		return;
+	g_lastTpTime[client] = 0;
 	if (cv_autoJoin.IntValue==1 && !g_noAutoJoin[client])
 		CreateTimer(1.0, Timer_AutoJoinSurvivor, client);
-	g_lastTpTime[client] = 0;
-	// 只有当第一个玩家进入游戏以后，物资实体才会生成
-	g_isFirstSet = true;
-	CreateTimer(1.0, Timer_FirstSetMultipe);
+
+	if (!g_isFirstHumanPutInServer)
+	{
+		g_isFirstHumanPutInServer = true;
+		// 只有当第一个玩家进入游戏以后，物资实体才会生成
+		CreateTimer(1.0, Timer_FirstSetMultipe);
+	}
 }
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
 	JoinSurvivor(client);
 }
-
 public Action Timer_FirstSetMultipe(Handle timer)
 {
 	int nowMultiple = g_nowMultiple;
@@ -420,23 +426,28 @@ public Action Timer_FirstSetMultipe(Handle timer)
 
 public Action Event_round_start(Event event, const char[] name, bool dontBroadcast)
 {
+	g_allPlayerLoaded = false;
 	CreateTimer(1.0, Timer_CheckPlayerInGame, _, TIMER_REPEAT);
 }
-// 当所有玩家载入完毕之后
-public Action Timer_CheckPlayerInGame(Handle timer, any data)
+public Action Timer_CheckPlayerInGame(Handle timer)
 {
-	if (IsAllHumanInGame())
+	// 当所有玩家载入完毕之后
+	if (IsAllHumanInGame() && GetSurvivors()>0)
 	{
 		g_allPlayerLoaded = true;
-		// 让玩家自动加入生还者
-		for (int i=1; i<=MaxClients; i++)
-		{
-			if (!g_noAutoJoin[i])
-				JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
-		}
+		CreateTimer(1.0, Timer_AllAutoJoinSurvivor);
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
+}
+public Action Timer_AllAutoJoinSurvivor(Handle timer)
+{
+	// 让玩家自动加入生还者
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (!g_noAutoJoin[i])
+			JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
+	}
 }
 
 public Action Event_round_end(Event event, const char[] name, bool dontBroadcast)
@@ -446,14 +457,10 @@ public Action Event_round_end(Event event, const char[] name, bool dontBroadcast
 		KickAllBot(false);
 }
 
-// 玩家刚加入游戏时自动让其加入生还者
-// 若在对抗模式启用本功能所有刚加入游戏的玩家都会自动加入生还者
-// 对抗模式最好不要启用本插件或者应该禁用本功能
 public Action Event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
-
-	if (IsValidClient(client))
+	if (IsValidClient(client, true))
 	{
 		if (!IsFakeClient(client))
 		{
@@ -493,8 +500,7 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 		{
 			char clientinfos[20];
 			GetMenuItem(menu, itemNum, clientinfos, sizeof(clientinfos));
-			g_maxplayers = StringToInt(clientinfos);
-			cv_svmaxplayers.SetInt(g_maxplayers);
+			cv_svmaxplayers.SetInt(StringToInt(clientinfos));
 			PrintToChatAll("\x04更改服务器的最大人数为\x04 \x03%i \x05人", cv_svmaxplayers.IntValue);
 		}
 		case MenuAction_End:
