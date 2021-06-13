@@ -6,7 +6,7 @@
 // 一些常用函数
 
 // 传送
-bool Teleport(int client, int target)
+stock bool Teleport(int client, int target)
 {
 	float vOrigin[3] = 0.0;
 	float vAngles[3] = 0.0;
@@ -206,16 +206,25 @@ stock bool IsAllHumanInGame()
 	return true;
 }
 
-// 从BOT生还者中获取其真实玩家client
+// 从BOT生还者中获取其有效真实玩家的client
 // 在执行该函数前你应先确认该client是有效生还者BOT
 // 若返回0，则说明该BOT没有真实玩家就位
 // 若返回>0，则说明有真实玩家就位，并且返回值为其真实玩家client
-stock int GetHumanClient(int client)
+stock int GetHumanClient(int bot)
 {
-	if (IsAlive(client))
-		return GetClientOfUserId(GetEntProp(client, Prop_Send, "m_humanSpectatorUserID"));
-	else
-		return 0;
+	if (IsAlive(bot))
+	{
+		int human = GetClientOfUserId(GetEntProp(bot, Prop_Send, "m_humanSpectatorUserID"));
+		if (human > 0)
+		{
+			if (IsClientInGame(human))
+			{
+				if (!IsFakeClient(human) && GetClientTeam(human)==1)
+					return human;
+			}
+		}
+	}
+	return 0;
 }
 
 // 玩家是否处于闲置（旁观不算）

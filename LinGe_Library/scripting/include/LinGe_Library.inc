@@ -24,7 +24,7 @@ enum BaseMode {
 	OnScavenge
 };
 native BaseMode GetBaseMode(); // 获取当前游戏的基础模式
-native bool IsOnVersus(); // 当前游戏模式是否是基于对抗
+native bool IsOnVersus(); // 当前游戏模式是否是基于对抗类模式（生还者对抗与清道夫模式也视为对抗类模式）
 
 #if !defined REQUIRE_PLUGIN
 public __pl_LinGe_Library_SetNTVOptional()

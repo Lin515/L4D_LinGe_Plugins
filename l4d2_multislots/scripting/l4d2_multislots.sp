@@ -2,7 +2,7 @@
 
 #include <sourcemod>
 #include <sdktools>
-#include <LinGe_Function>
+#include <LinGe_Library>
 #include <left4dhooks>
 
 public Plugin myinfo = {
@@ -31,12 +31,13 @@ ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 
+bool g_isOnVersus; // 本插件不应该用在对抗中，但是可以用在基于对抗的药役中
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allHumanInGame = false; // 所有玩家是否已经载入
 
-bool g_noAutoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
+bool g_autoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
 int g_lastTpTime[MAXPLAYERS+1] = 0;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -85,6 +86,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "自动多倍物资设置");
 	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
 
+	AddCommandListener(Command_Jointeam, "jointeam");
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_joingame", Cmd_joingame, "玩家加入生还者");
@@ -118,10 +120,16 @@ public Action Cmd_addbot(int client, int agrs)
 		return Plugin_Handled;
 	switch (AddBot())
 	{
+		case 0:
+			PrintToChat(client, "\x04已成功添加一个BOT");
 		case -1:
 			PrintToChat(client, "\x04服务器只允许未出安全区时增加BOT");
 		case -2:
 			PrintToChat(client, "\x04当前无需增加BOT");
+		case -3:
+			PrintToChat(client, "\x04创建BOT失败");
+		case -4:
+			PrintToChat(client, "\x04生成生还者BOT失败");
 	}
 	return Plugin_Handled;
 }
@@ -139,7 +147,7 @@ public Action Cmd_away(int client, int args)
 		return Plugin_Handled;
 	}
 	if (GetClientTeam(client) == 2)
-		g_noAutoJoin[client] = true;
+		g_autoJoin[client] = false;
 	ChangeClientTeam(client, 1);
 	return Plugin_Handled;
 }
@@ -186,7 +194,7 @@ public Action Cmd_tp(int client, int args)
 			return Plugin_Handled;
 		}
 	}
-	
+
 	if (GetClientTeam(client) != 2)
 	{
 		PrintToChat(client, "\x04只有生还者可以使用传送指令");
@@ -202,14 +210,14 @@ public Action Cmd_tp(int client, int args)
 		PrintToChat(client, "\x04只有一名存活生还者时无法使用传送");
 		return Plugin_Handled;
 	}
-	
+
 	int diff = GetTime() - g_lastTpTime[client];
 	if (diff < cv_tpLimit.IntValue)
 	{
 		PrintToChat(client, "\x04你需要\x03 %d \x04秒后才能再次使用传送指令", cv_tpLimit.IntValue-diff);
 		return Plugin_Handled;
 	}
-	
+
 	DisplayTpMenu(client);
 	return Plugin_Handled;
 }
@@ -224,11 +232,11 @@ public Action Cmd_joingame(int client, int args)
 			PrintToChat(client, "\x04请等待本回合结束后再加入游戏");
 		case -2:
 			PrintToChat(client, "\x04当前生还者空位不足，暂时无法加入");
-		case -4:
+		case 1:
 			PrintToChat(client, "\x04你已经是生还者了");
-		case -5:
+		case 2:
 			PrintToChat(client, "\x04你当前是闲置状态，请点击鼠标左键加入游戏");
-		case -7:
+		case 3:
 			PrintToChat(client, "\x04有玩家尚未载入完毕，当所有玩家载入完毕时你将自动加入生还者");
 	}
 	return Plugin_Handled;
@@ -384,6 +392,23 @@ public Action Cmd_autogive(int client, int args)
 	return Plugin_Handled;
 }
 
+// 将jointeam加入生还者的功能勾住 禁用其原版加入方式
+public Action Command_Jointeam(int client, const char[] command, int args)
+{
+	if (args > 0)
+	{
+		char buffer[32];
+		GetCmdArg(1, buffer, sizeof(buffer));
+		if ( strcmp(buffer, "2") == 0
+		|| strcmp(buffer, "survivor", false) == 0 )
+		{
+			JoinSurvivor(client);
+			return Plugin_Handled;
+		}
+	}
+	return Plugin_Continue;
+}
+
 public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	SetMultiple();
@@ -408,30 +433,16 @@ public void OnConfigsExecuted()
 {
 	if (cv_allowSset.IntValue >= 0)
 		cv_svmaxplayers.SetInt(cv_maxs.IntValue);
+	g_isOnVersus = (GetBaseMode() == OnVersus);
 }
 
 public void OnClientDisconnect(int client)
 {
-	if (IsFakeClient(client))
-		return;
 	// 重置一些数据
-	if (g_allHumanInGame)
-		g_noAutoJoin[client] = false;
-	g_lastTpTime[client] = 0;
-}
-public void OnClientPutInServer(int client)
-{
 	if (IsFakeClient(client))
 		return;
+	g_autoJoin[client] = true;
 	g_lastTpTime[client] = 0;
-
-	// 自动加入生还者
-	if (cv_autoJoin.IntValue==1 && !g_noAutoJoin[client])
-		CreateTimer(1.0, Timer_AutoJoinSurvivor, client);
-}
-public Action Timer_AutoJoinSurvivor(Handle timer, any client)
-{
-	JoinSurvivor(client);
 }
 
 public void OnMapEnd()
@@ -461,19 +472,26 @@ public Action Timer_CheckFirstSurvivors(Handle timer, any multiple)
 }
 public Action Timer_CheckAllHumanInGame(Handle timer)
 {
-	if (!IsAllHumanInGame() || GetSurvivors()==0)
+	if (!IsAllHumanInGame())
 		return Plugin_Continue;
 	g_allHumanInGame = true;
 	// 所有玩家载入完毕之后再校准一次物资倍数
 	if (cv_autoSupply.IntValue == 1)
 		SetMultiple();
 	// 让没有加入游戏的玩家自动加入
-	for (int i=1; i<=MaxClients; i++)
-	{
-		if (!g_noAutoJoin[i])
-			JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
-	}
+	CreateTimer(5.0, Timer_AllAutoJoinSurvivor);
 	return Plugin_Stop;
+}
+public Action Timer_AllAutoJoinSurvivor(Handle timer)
+{
+	if (GetSurvivors() > 0)
+	{
+		for (int i=1; i<=MaxClients; i++)
+		{
+			if (g_autoJoin[i])
+				JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
+		}
+	}
 }
 
 public Action Event_round_end(Event event, const char[] name, bool dontBroadcast)
@@ -485,10 +503,19 @@ public Action Event_round_end(Event event, const char[] name, bool dontBroadcast
 public Action Event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
+	int oldteam = event.GetInt("oldteam");
+	int team = event.GetInt("team");
+
 	if (IsValidClient(client, true))
 	{
 		if (!IsFakeClient(client))
 		{
+			if (oldteam==0 && team!=2)
+			{
+				// 自动让其加入生还者
+				if (cv_autoJoin.IntValue==1 && g_autoJoin[client])
+					CreateTimer(1.0, Timer_JoinSurvivor, client);
+			}
 			// 自动更改物资倍数需所有玩家已完成载入
 			if (g_allHumanInGame && cv_autoSupply.IntValue == 1)
 				CreateTimer(0.5, Timer_SetMultiple);
@@ -647,77 +674,88 @@ void KickAllBot(bool all=true)
 int JoinSurvivor(client)
 {
 	if (!IsValidClient(client)) // 判断client有效性
-		return -6;
+		return 4;
 	if (IsFakeClient(client)) // 不允许BOT通过此函数加入生还
-		return -3;
-	g_noAutoJoin[client] = false;
-	if (GetClientTeam(client) == 2) // client已经是生还
-		return -4;
+		return 5;
+	g_autoJoin[client] = true;
+	if (GetClientTeam(client) == 2) // client已经是生还者
+		return 1;
 	if (IsClientIdle(client)) // client处于闲置
-		return -5;
+		return 2;
 	if (!g_allHumanInGame)
-		return -7;
+		return 3;
 
-	if (0 < GetAliveBotSurvivors())
+	// 搜索可接管BOT，若没有则添加一个
+	int bot = FindBotToTakeOver();
+	if (bot > 0)
 	{
-		ClientCommand(client, "jointeam 2");
+		TakeOverBot(client, bot);
 		return 0;
 	}
 	else
 	{
 		int ret = AddBot();
 		if (0 == ret)
-			CreateTimer(1.0, Timer_Jointeam2, client);
+			CreateTimer(0.5, Timer_JoinSurvivor, client);
 		return ret;
 	}
 }
-public Action Timer_Jointeam2(Handle timer, any client)
+public Action Timer_JoinSurvivor(Handle timer, any client)
 {
-	ClientCommand(client, "jointeam 2");
+	JoinSurvivor(client);
 }
 
-// AddBot 返回0表示成功增加BOT 返回1表示当前不允许增加BOT 返回2表示无需增加BOT
+// AddBot 返回0表示成功增加BOT 返回-1表示当前不允许增加BOT 返回-2表示无需增加BOT
 int AddBot(bool force=false)
 {
-	if (cv_onlySafeAddBot.IntValue == 1 && !force)
-	{
-		if (L4D_HasAnySurvivorLeftSafeArea())
-			return -1;
-	}
-	if (GetAliveBotSurvivors() >= GetSpectators()
-	&& GetSurvivors() >= cv_survivorLimit.IntValue
-	&& !force)
+	if (!force && cv_onlySafeAddBot.IntValue == 1
+	&& L4D_HasAnySurvivorLeftSafeArea() )
+		return -1;
+	if (!force && GetAliveBotSurvivors() >= GetSpectators()
+	&& GetSurvivors() >= cv_survivorLimit.IntValue )
 		return -2;
 
-	int survivorbot = CreateFakeClient("survivor bot");
-	ChangeClientTeam(survivorbot, 2);
-	DispatchKeyValue(survivorbot, "classname", "SurvivorBot");
-	DispatchSpawn(survivorbot);
-	// 如果新BOT是死亡的则复活它
-	if (!IsAlive(survivorbot))
-		SDKCall(h_RoundRespawn, survivorbot);
-
-	// 如果已经有人离开安全区
-	if (L4D_HasAnySurvivorLeftSafeArea())
+	int bot = CreateFakeClient("survivor bot");
+	if (bot > 0)
 	{
-		// 传送
-		for (int i=1; i<=MaxClients; i++)
+		KickClientEx(bot, "");
+		ChangeClientTeam(bot, 2);
+		if (DispatchKeyValue(bot, "classname", "SurvivorBot") && DispatchSpawn(bot))
 		{
-			if (IsClientInGame(i))
+			// 如果新BOT是死亡的则复活它
+			if (!IsAlive(bot))
+				SDKCall(h_RoundRespawn, bot);
+			// 如果已经有人离开安全区
+			if (L4D_HasAnySurvivorLeftSafeArea())
 			{
-				if (GetClientTeam(i) == 2 && survivorbot!=i && IsAlive(i))
+				// 传送
+				for (int i=1; i<=MaxClients; i++)
 				{
-					Teleport(survivorbot, i);
-					break;
+					if (IsClientInGame(i))
+					{
+						if (GetClientTeam(i) == 2 && bot!=i && IsAlive(i))
+						{
+							Teleport(bot, i);
+							break;
+						}
+					}
 				}
+				// 给予物品
+				if (cv_autoGive.IntValue == 1)
+					GivePlayerSupply(bot);
 			}
+			KickClient(bot, "");
+			return 0;
 		}
-		// 给予物品
-		if (cv_autoGive.IntValue == 1)
-			GivePlayerSupply(survivorbot);
+		KickClient(bot, "");
+		LogError("生成生还者BOT失败");
+		return -4;
 	}
-	KickClient(survivorbot, "");
-	return 0;
+	else
+	{
+		LogError("BOT创建失败");
+		return -3;
+	}
 }
 
 void GivePlayerSupply(int client)
@@ -755,6 +793,40 @@ int GetPlayers()
 	return numplayers;
 }
 
+// 寻找一个可以被玩家接管的生还者BOT，若未找到则返回0
+int FindBotToTakeOver()
+{
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientConnected(i) && IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == 2 && IsFakeClient(i))
+			{
+				if (IsAlive(i) && GetHumanClient(i) == 0)
+					return i;
+			}
+		}
+	}
+	return 0;
+}
+// 让玩家接管一个生还者BOT
+void TakeOverBot(int client, int bot)
+{
+	// 完全接管适用于基于对抗模式的药役
+	// 战役模式应不完全接管
+	if (g_isOnVersus)
+	{
+		SDKCall(h_SetHumanSpec, bot, client);
+		SDKCall(h_TakeOverBot, client, true);
+	}
+	else
+	{
+		SDKCall(h_SetHumanSpec, bot, client);
+		SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
+		PrintHintText(client, "请点击左键控制BOT");
+	}
+}
+
 // 载入SDKCall Function
 void LoadSDKCallFunction()
 {
@@ -776,6 +848,7 @@ void LoadSDKCallFunction()
 		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer", 0))
 			SetFailState("未能找到签名 ： SurvivorBot_SetHumanSpectator");
 	}
+	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer)
 	h_SetHumanSpec = EndPrepSDKCall();
 	if (h_SetHumanSpec == null)
 		SetFailState("无法创建SDKCall ： SurvivorBot_SetHumanSpectator");
@@ -787,6 +860,7 @@ void LoadSDKCallFunction()
 		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer11TakeOverBotEb", 0))
 			SetFailState("未能找到签名 ： CTerrorPlayer_TakeOverBot");
 	}
+	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain)
 	h_TakeOverBot = EndPrepSDKCall();
 	if (h_TakeOverBot == null)
 		SetFailState("无法创建SDKCall ： CTerrorPlayer_TakeOverBot");
