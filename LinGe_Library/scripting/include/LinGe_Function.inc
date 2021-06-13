@@ -2,7 +2,18 @@
 	#endinput
 #endif
 #define _LinGe_Function_included_
+
 // 一些常用函数
+
+// 传送
+bool Teleport(int client, int target)
+{
+	float vOrigin[3] = 0.0;
+	float vAngles[3] = 0.0;
+	GetClientAbsOrigin(target, vOrigin);
+	GetClientAbsAngles(target, vAngles);
+	TeleportEntity(client, vOrigin, vAngles, NULL_VECTOR);
+}
 
 // 在char[][] arr中查找指定字符串
 // 测试可用 但会出现编译警告 warning 219: local variable "arr" shadows a variable at a preceding level
@@ -111,7 +122,7 @@ stock bool IsPluginRunning(const char[] name)
 		plugin = ReadPlugin(iter);
 		if (GetPluginInfo(plugin, PlInfo_Name, buffer, sizeof(buffer)))
 		{
-			if (StrEqual(name, buffer))
+			if (strcmp(name, buffer) == 0)
 			{
 				status = GetPluginStatus(plugin);
 				if (Plugin_Running == status)
@@ -141,7 +152,7 @@ stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 		plugin = ReadPlugin(iter);
 		if (GetPluginInfo(plugin, PlInfo_Name, buffer, sizeof(buffer)))
 		{
-			if (StrEqual(name, buffer))
+			if (strcmp(name, buffer) == 0)
 			{
 				status = GetPluginStatus(plugin);
 				if (Plugin_Loaded == status)
@@ -225,6 +236,21 @@ stock bool IsClientIdle(int client)
 		}
 	}
 	return false;
+}
+
+// 当前在线的全部Client
+stock int GetClients(bool noNeedInGame=false)
+{
+	int numclients = 0;
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientConnected(i))
+		{
+			if (IsClientInGame(i) || noNeedInGame)
+				numclients++;
+		}
+	}
+	return numclients;
 }
 
 // 当前在线的全部真实玩家数
