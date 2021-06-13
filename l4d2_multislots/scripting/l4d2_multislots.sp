@@ -17,6 +17,7 @@ public Plugin myinfo = {
 Handle h_RoundRespawn;
 Handle h_SetHumanSpec;
 Handle h_TakeOverBot;
+Handle h_SetObserverTarget;
 
 ConVar cv_l4dSurvivorLimit;
 ConVar cv_svmaxplayers;
@@ -822,46 +823,79 @@ void TakeOverBot(int client, int bot)
 	else
 	{
 		SDKCall(h_SetHumanSpec, bot, client);
+//		SDKCall(h_SetObserverTarget, client, bot);
 		SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
-		PrintHintText(client, "请点击左键控制BOT");
+		WriteTakeoverPanel(client, bot);
 	}
+}
+
+// WriteTakeoverPanel 来源于 [Lux]survivor_afk_fix.sp
+//Thanks Leonardo for helping me with the vgui keyvalue layout
+//This is for rare case sometimes the takeover panel don't show.
+void WriteTakeoverPanel(int client, int bot)
+{
+	char buf[2];
+	int character = GetEntProp(bot, Prop_Send, "m_survivorCharacter", 1);
+	IntToString(character, buf, sizeof(buf));
+	BfWrite msg = view_as<BfWrite>(StartMessageOne("VGUIMenu", client));
+	msg.WriteString("takeover_survivor_bar"); //type
+	msg.WriteByte(true); //hide or show panel type
+	msg.WriteByte(1); //amount of keys
+	msg.WriteString("character"); //key name
+	msg.WriteString(buf); //key value
+	EndMessage();
 }
 
 // 载入SDKCall Function
 void LoadSDKCallFunction()
 {
-	// CTerrorPlayer_RoundRespawn
+	// CTerrorPlayer::RoundRespawn
 	StartPrepSDKCall(SDKCall_Player);
 	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x56\x8B\xF1\xE8\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x75", 16))
 	{
 		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer12RoundRespawnEv", 0))
-			SetFailState("未能找到签名 ： CTerrorPlayer_RoundRespawn");
+			SetFailState("未能找到签名 ： CTerrorPlayer::RoundRespawn");
 	}
 	h_RoundRespawn = EndPrepSDKCall();
 	if (h_RoundRespawn == null)
-		SetFailState("无法创建SDKCall ： CTerrorPlayer_RoundRespawn");
+		SetFailState("无法创建SDKCall ： CTerrorPlayer::RoundRespawn");
 
-	// SurvivorBot_SetHumanSpectator
+	// SurvivorBot::SetHumanSpectator
 	StartPrepSDKCall(SDKCall_Player);
 	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x56\x8B\xF1\x83\xBE\x2A\x2A\x2A\x2A\x00\x7E\x07\x32\xC0\x5E\x5D\xC2\x04\x00\x8B\x0D", 24))
 	{
 		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer", 0))
-			SetFailState("未能找到签名 ： SurvivorBot_SetHumanSpectator");
+			SetFailState("未能找到签名 ： SurvivorBot::SetHumanSpectator");
 	}
 	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer)
 	h_SetHumanSpec = EndPrepSDKCall();
 	if (h_SetHumanSpec == null)
-		SetFailState("无法创建SDKCall ： SurvivorBot_SetHumanSpectator");
+		SetFailState("无法创建SDKCall ： SurvivorBot::SetHumanSpectator");
 
-	// CTerrorPlayer_TakeOverBot
+	// CTerrorPlayer::TakeOverBot
 	StartPrepSDKCall(SDKCall_Player);
 	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x8D\x85", 23))
 	{
 		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer11TakeOverBotEb", 0))
-			SetFailState("未能找到签名 ： CTerrorPlayer_TakeOverBot");
+			SetFailState("未能找到签名 ： CTerrorPlayer::TakeOverBot");
 	}
 	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain)
 	h_TakeOverBot = EndPrepSDKCall();
 	if (h_TakeOverBot == null)
-		SetFailState("无法创建SDKCall ： CTerrorPlayer_TakeOverBot");
+		SetFailState("无法创建SDKCall ： CTerrorPlayer::TakeOverBot");
+
+	// CTerrorPlayer::SetObserverTarget
+	StartPrepSDKCall(SDKCall_Player);
+	PrepSDKCall_SetVirtual(375);
+	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+	h_SetObserverTarget = EndPrepSDKCall();
+	if (h_SetObserverTarget == null)
+	{
+		StartPrepSDKCall(SDKCall_Player);
+		PrepSDKCall_SetVirtual(376);
+		PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+		h_SetObserverTarget = EndPrepSDKCall();
+		if (h_SetObserverTarget == null)
+			LogError("无法创建SDKCall ： CTerrorPlayer::SetObserverTarget");
+	}
 }
