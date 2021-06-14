@@ -1,4 +1,5 @@
-// 多人控制 主要是自用 代码参考了望夜多人插件(R_smc)与豆瓣多人插件（l4d2_multislots SwiftReal, MI 5, 豆瓣）
+// 适用于战役模式的多人控制 主要是自用
+// 代码大量参考（复制~）了望夜多人插件(R_smc)与豆瓣多人插件（l4d2_multislots SwiftReal, MI 5, 豆瓣）
 
 #include <sourcemod>
 #include <sdktools>
@@ -9,15 +10,15 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.0",
+	version = "2.1",
 	url = "https://github.com/LinGe515"
 };
 
 // SDKCall Function
-Handle h_RoundRespawn;
-Handle h_SetHumanSpec;
-Handle h_TakeOverBot;
-Handle h_SetObserverTarget;
+Handle h_RoundRespawn = INVALID_HANDLE;
+Handle h_SetHumanSpec = INVALID_HANDLE;
+Handle h_TakeOverBot = INVALID_HANDLE;
+Handle h_SetObserverTarget = INVALID_HANDLE; // 保留不使用
 
 ConVar cv_l4dSurvivorLimit;
 ConVar cv_svmaxplayers;
@@ -36,7 +37,7 @@ bool g_isOnVersus; // 本插件不应该用在对抗中，但是可以用在基�
 ArrayList g_autoGive; // 自动给予哪些
 ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
-bool g_allHumanInGame = false; // 所有玩家是否已经载入
+bool g_allHumanInGame = true; // 所有玩家是否已经载入 默认为true是为了在游戏中途加载插件时能正常工作
 
 bool g_autoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
 int g_lastTpTime[MAXPLAYERS+1] = 0;
@@ -131,6 +132,8 @@ public Action Cmd_addbot(int client, int agrs)
 			PrintToChat(client, "\x04创建BOT失败");
 		case -4:
 			PrintToChat(client, "\x04生成生还者BOT失败");
+		case -5:
+			PrintToChat(client, "\x04无法复活BOT，请尝试在回合开始时再添加");
 	}
 	return Plugin_Handled;
 }
@@ -231,7 +234,7 @@ public Action Cmd_joingame(int client, int args)
 	{
 		case -1:
 			PrintToChat(client, "\x04请等待本回合结束后再加入游戏");
-		case -2:
+		case -2, -5: // 按本插件的机制，应该不会返回-2 -5为无法复活BOT
 			PrintToChat(client, "\x04当前生还者空位不足，暂时无法加入");
 		case 1:
 			PrintToChat(client, "\x04你已经是生还者了");
@@ -393,23 +396,6 @@ public Action Cmd_autogive(int client, int args)
 	return Plugin_Handled;
 }
 
-// 将jointeam加入生还者的功能勾住 禁用其原版加入方式
-public Action Command_Jointeam(int client, const char[] command, int args)
-{
-	if (args > 0)
-	{
-		char buffer[32];
-		GetCmdArg(1, buffer, sizeof(buffer));
-		if ( strcmp(buffer, "2") == 0
-		|| strcmp(buffer, "survivor", false) == 0 )
-		{
-			JoinSurvivor(client);
-			return Plugin_Handled;
-		}
-	}
-	return Plugin_Continue;
-}
-
 public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	SetMultiple();
@@ -475,16 +461,11 @@ public Action Timer_CheckAllHumanInGame(Handle timer)
 {
 	if (!IsAllHumanInGame())
 		return Plugin_Continue;
-	g_allHumanInGame = true;
 	// 所有玩家载入完毕之后再校准一次物资倍数
 	if (cv_autoSupply.IntValue == 1)
 		SetMultiple();
+	g_allHumanInGame = true;
 	// 让没有加入游戏的玩家自动加入
-	CreateTimer(5.0, Timer_AllAutoJoinSurvivor);
-	return Plugin_Stop;
-}
-public Action Timer_AllAutoJoinSurvivor(Handle timer)
-{
 	if (GetSurvivors() > 0)
 	{
 		for (int i=1; i<=MaxClients; i++)
@@ -493,6 +474,7 @@ public Action Timer_AllAutoJoinSurvivor(Handle timer)
 				JoinSurvivor(i); // 无需判断client有效性 JoinSurvivor自带判断
 		}
 	}
+	return Plugin_Stop;
 }
 
 public Action Event_round_end(Event event, const char[] name, bool dontBroadcast)
@@ -724,8 +706,14 @@ int AddBot(bool force=false)
 		if (DispatchKeyValue(bot, "classname", "SurvivorBot") && DispatchSpawn(bot))
 		{
 			// 如果新BOT是死亡的则复活它
-			if (!IsAlive(bot))
+			if (!IsAlive(bot) && h_RoundRespawn != INVALID_HANDLE )
 				SDKCall(h_RoundRespawn, bot);
+			if (!IsAlive(bot))
+			{
+				KickClient(bot, "无法复活BOT");
+				return -5;
+			}
+
 			// 如果已经有人离开安全区
 			if (L4D_HasAnySurvivorLeftSafeArea())
 			{
@@ -810,6 +798,40 @@ int FindBotToTakeOver()
 	}
 	return 0;
 }
+
+// 接管jointeam加入生还者的功能
+public Action Command_Jointeam(int client, const char[] command, int args)
+{
+	if (args > 0)
+	{
+		char buffer[MAX_NAME_LENGTH];
+		GetCmdArg(1, buffer, sizeof(buffer));
+		if ( strcmp(buffer, "2") == 0
+		|| strcmp(buffer, "survivor", false) == 0 )
+		{
+			int bot = FindBotToTakeOver();
+			GetClientName(client, buffer, sizeof(buffer));
+			if (h_SetHumanSpec == INVALID_HANDLE && bot > 0)
+			{
+				LogMessage("放行 %s jointeam survivor", buffer);
+				return Plugin_Continue;
+			}
+			else if (h_TakeOverBot == INVALID_HANDLE
+			&& bot > 0 && g_isOnVersus )
+			{
+				LogMessage("放行 %s jointeam survivor", buffer);
+				return Plugin_Continue;
+			}
+			else
+			{
+				JoinSurvivor(client);
+				return Plugin_Handled;
+			}
+		}
+	}
+	return Plugin_Continue;
+}
+
 // 让玩家接管一个生还者BOT
 void TakeOverBot(int client, int bot)
 {
@@ -817,18 +839,31 @@ void TakeOverBot(int client, int bot)
 	// 战役模式应不完全接管
 	if (g_isOnVersus)
 	{
-		SDKCall(h_SetHumanSpec, bot, client);
-		SDKCall(h_TakeOverBot, client, true);
+		if ( h_SetHumanSpec != INVALID_HANDLE
+		&& h_TakeOverBot != INVALID_HANDLE )
+		{
+			SDKCall(h_SetHumanSpec, bot, client);
+			SDKCall(h_TakeOverBot, client, true);
+		}
+		else
+			ClientCommand(client, "jointeam 2");
 	}
 	else
 	{
-		SDKCall(h_SetHumanSpec, bot, client);
-//		SDKCall(h_SetObserverTarget, client, bot);
-		SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
-		WriteTakeoverPanel(client, bot);
+		if (h_SetHumanSpec != INVALID_HANDLE)
+		{
+			SDKCall(h_SetHumanSpec, bot, client);
+	//		SDKCall(h_SetObserverTarget, client, bot);
+			SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
+			WriteTakeoverPanel(client, bot);
+		}
+		else
+		{
+			ClientCommand(client, "jointeam 2");
+			ClientCommand(client, "go_away_from_keyboard");
+		}
 	}
 }
-
 // WriteTakeoverPanel 来源于 [Lux]survivor_afk_fix.sp
 //Thanks Leonardo for helping me with the vgui keyvalue layout
 //This is for rare case sometimes the takeover panel don't show.
@@ -846,56 +881,144 @@ void WriteTakeoverPanel(int client, int bot)
 	EndMessage();
 }
 
+
 // 载入SDKCall Function
+#define GAMEDATAFILE "l4d2_multislots"
+#define SDKCall_RoundRespawn_Key			"RoundRespawn"
+#define SDKCall_RoundRespawn_Windows		"\\x56\\x8B\\xF1\\xE8\\x2A\\x2A\\x2A\\x2A\\xE8\\x2A\\x2A\\x2A\\x2A\\x84\\xC0\\x75"
+#define SDKCall_RoundRespawn_Linux			"@_ZN13CTerrorPlayer12RoundRespawnEv"
+#define SDKCall_SetHumanSpec_Key			"SetHumanSpec"
+#define SDKCall_SetHumanSpec_Windows		"\\x55\\x8B\\xEC\\x56\\x8B\\xF1\\x83\\xBE\\x2A\\x2A\\x2A\\x2A\\x00\\x7E\\x07\\x32\\xC0\\x5E\\x5D\\xC2\\x04\\x00\\x8B\\x0D"
+#define SDKCall_SetHumanSpec_Linux			"@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer"
+#define SDKCall_TakeOverBot_Key				"TakeOverBot"
+#define SDKCall_TakeOverBot_Windows			"\\x55\\x8B\\xEC\\x81\\xEC\\x2A\\x2A\\x2A\\x2A\\xA1\\x2A\\x2A\\x2A\\x2A\\x33\\xC5\\x89\\x45\\xFC\\x53\\x56\\x8D\\x85"
+#define SDKCall_TakeOverBot_Linux			"@_ZN13CTerrorPlayer11TakeOverBotEb"
+#define SDKCall_SetObserverTarget_Key		"SetObserverTarget"
+#define SDKCall_SetObserverTarget_Windows	402
+#define SDKCall_SetObserverTarget_Linux		403
+
 void LoadSDKCallFunction()
 {
+	char filePath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATAFILE);
+	if (FileExists(filePath))
+		LoadGameDataFile();
+	else
+	{
+		LogError("未找到文件 %s ，将自动创建", filePath);
+		if (CreateGameDataFile(filePath))
+			LoadGameDataFile();
+		else
+			LogError("创建文件 %s 失败", filePath);
+	}
+}
+
+void LoadGameDataFile()
+{
+	h_RoundRespawn = INVALID_HANDLE;
+	h_SetHumanSpec = INVALID_HANDLE;
+	h_TakeOverBot = INVALID_HANDLE;
+	h_SetObserverTarget = INVALID_HANDLE;
+
+	GameData hGameData = new GameData(GAMEDATAFILE);
+	if (hGameData == null)
+	{
+		LogError("无法载入 %s", GAMEDATAFILE);
+		return;
+	}
+
 	// CTerrorPlayer::RoundRespawn
 	StartPrepSDKCall(SDKCall_Player);
-	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x56\x8B\xF1\xE8\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x75", 16))
+	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, SDKCall_RoundRespawn_Key))
 	{
-		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer12RoundRespawnEv", 0))
-			SetFailState("未能找到签名 ： CTerrorPlayer::RoundRespawn");
+		h_RoundRespawn = EndPrepSDKCall();
+		if (h_RoundRespawn == INVALID_HANDLE)
+			LogError("无法创建SDKCall ： CTerrorPlayer::RoundRespawn");
 	}
-	h_RoundRespawn = EndPrepSDKCall();
-	if (h_RoundRespawn == null)
-		SetFailState("无法创建SDKCall ： CTerrorPlayer::RoundRespawn");
+	else
+		LogError("未能找到签名 ： CTerrorPlayer::RoundRespawn");
 
 	// SurvivorBot::SetHumanSpectator
 	StartPrepSDKCall(SDKCall_Player);
-	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x56\x8B\xF1\x83\xBE\x2A\x2A\x2A\x2A\x00\x7E\x07\x32\xC0\x5E\x5D\xC2\x04\x00\x8B\x0D", 24))
+	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, SDKCall_SetHumanSpec_Key))
 	{
-		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer", 0))
-			SetFailState("未能找到签名 ： SurvivorBot::SetHumanSpectator");
+		PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer)
+		h_SetHumanSpec = EndPrepSDKCall();
+		if (h_SetHumanSpec == INVALID_HANDLE)
+			LogError("无法创建SDKCall ： SurvivorBot::SetHumanSpectator");
 	}
-	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer)
-	h_SetHumanSpec = EndPrepSDKCall();
-	if (h_SetHumanSpec == null)
-		SetFailState("无法创建SDKCall ： SurvivorBot::SetHumanSpectator");
+	else
+		LogError("未能找到签名 ： SurvivorBot::SetHumanSpectator");
 
 	// CTerrorPlayer::TakeOverBot
 	StartPrepSDKCall(SDKCall_Player);
-	if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x8D\x85", 23))
+	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, SDKCall_TakeOverBot_Key))
 	{
-		if (!PrepSDKCall_SetSignature(SDKLibrary_Server, "@_ZN13CTerrorPlayer11TakeOverBotEb", 0))
-			SetFailState("未能找到签名 ： CTerrorPlayer::TakeOverBot");
+		PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain)
+		h_TakeOverBot = EndPrepSDKCall();
+		if (h_TakeOverBot == INVALID_HANDLE)
+			LogError("无法创建SDKCall ： CTerrorPlayer::TakeOverBot");
 	}
-	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain)
-	h_TakeOverBot = EndPrepSDKCall();
-	if (h_TakeOverBot == null)
-		SetFailState("无法创建SDKCall ： CTerrorPlayer::TakeOverBot");
+	else
+		LogError("未能找到签名 ： CTerrorPlayer::TakeOverBot");
 
 	// CTerrorPlayer::SetObserverTarget
 	StartPrepSDKCall(SDKCall_Player);
-	PrepSDKCall_SetVirtual(375);
-	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
-	h_SetObserverTarget = EndPrepSDKCall();
-	if (h_SetObserverTarget == null)
+	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Virtual, SDKCall_SetObserverTarget_Key))
 	{
-		StartPrepSDKCall(SDKCall_Player);
-		PrepSDKCall_SetVirtual(376);
 		PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
 		h_SetObserverTarget = EndPrepSDKCall();
-		if (h_SetObserverTarget == null)
-			LogError("无法创建SDKCall ： CTerrorPlayer::SetObserverTarget");
+		if (h_SetObserverTarget == INVALID_HANDLE)
+			LogError("无法创建SDKCall ： CTerrorPlayer::SetObserverTarget'");
 	}
+	else
+		LogError("未能找到Offset ： CTerrorPlayer::SetObserverTarget");
+
+	CloseHandle(hGameData);
+}
+
+bool CreateGameDataFile(const char[] filePath)
+{
+	Handle hFile = OpenFile(filePath, "w");
+	if (!hFile)
+		return false;
+
+	WriteFileLine(hFile, "\"Games\"");
+	WriteFileLine(hFile, "{");
+	WriteFileLine(hFile, "\x09\"left4dead2\"");
+	WriteFileLine(hFile, "\x09{");
+	WriteFileLine(hFile, "\x09\x09\"Offsets\"");
+	WriteFileLine(hFile, "\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\"%s\"", SDKCall_SetObserverTarget_Key);
+	WriteFileLine(hFile, "\x09\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"linux\"\x09\x09\"%d\"", SDKCall_SetObserverTarget_Linux);
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"windows\"\x09\"%d\"", SDKCall_SetObserverTarget_Windows);
+	WriteFileLine(hFile, "\x09\x09\x09}");
+	WriteFileLine(hFile, "\x09\x09}");
+	WriteFileLine(hFile, "\x09\x09\"Signatures\"");
+	WriteFileLine(hFile, "\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\"%s\"", SDKCall_RoundRespawn_Key);
+	WriteFileLine(hFile, "\x09\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"library\"\x09\"server\"");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"linux\"\x09\x09\"%s\"", SDKCall_RoundRespawn_Linux);
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"windows\"\x09\"%s\"", SDKCall_RoundRespawn_Windows);
+	WriteFileLine(hFile, "\x09\x09\x09}");
+	WriteFileLine(hFile, "\x09\x09\x09\"%s\"", SDKCall_SetHumanSpec_Key);
+	WriteFileLine(hFile, "\x09\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"library\"\x09\"server\"");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"linux\"\x09\x09\"%s\"", SDKCall_SetHumanSpec_Linux);
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"windows\"\x09\"%s\"", SDKCall_SetHumanSpec_Windows);
+	WriteFileLine(hFile, "\x09\x09\x09}");
+	WriteFileLine(hFile, "\x09\x09\x09\"%s\"", SDKCall_TakeOverBot_Key);
+	WriteFileLine(hFile, "\x09\x09\x09{");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"library\"\x09\"server\"");
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"linux\"\x09\x09\"%s\"", SDKCall_TakeOverBot_Linux);
+	WriteFileLine(hFile, "\x09\x09\x09\x09\"windows\"\x09\"%s\"", SDKCall_TakeOverBot_Windows);
+	WriteFileLine(hFile, "\x09\x09\x09}");
+	WriteFileLine(hFile, "\x09\x09}");
+	WriteFileLine(hFile, "\x09}");
+	WriteFileLine(hFile, "}");
+
+	CloseHandle(hFile);
+	return true;
 }
