@@ -16,8 +16,6 @@ stock bool Teleport(int client, int target)
 }
 
 // 在char[][] arr中查找指定字符串
-// 测试可用 但会出现编译警告 warning 219: local variable "arr" shadows a variable at a preceding level
-// 我不太清楚这个警告的意义 如果觉得烦人可以在编译时给 spcomp 添加参数 -w 219 屏蔽这个警告
 stock int IndexString(const char[] str, const char[][] arr, int size, int srtidx=0, bool reverse=false, bool caseSensitive=true, bool equal=true)
 {
 	if (srtidx >= size || srtidx < 0)
