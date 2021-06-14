@@ -111,7 +111,7 @@ public void OnPluginStart()
 
 public Action Cmd_forceaddbot(int client, int agrs)
 {
-	if (AddBot(true) == 0 && 0!=client)
+	if (AddBot(true) == 0 && client>0)
 		PrintToChat(client, "\x04已强制添加一个BOT");
 	return Plugin_Handled;
 }
@@ -256,7 +256,7 @@ public Action Cmd_kb(int client, int args)
 
 public Action Cmd_sset(int client, int args)
 {
-	if (client)
+	if (client > 0)
 	{
 		if (null == cv_svmaxplayers)
 			PrintToChat(client, "\x04未能捕捉到\x03 sv_maxplayers");
@@ -270,7 +270,7 @@ public Action Cmd_sset(int client, int args)
 
 public Action Cmd_mmn(int client, int args)
 {
-	if (cv_autoSupply.IntValue == -1)
+	if (cv_autoSupply.IntValue == -1 && client > 0)
 	{
 		PrintToChat(client, "\x04自动多倍物资功能当前是完全禁用的");
 		return Plugin_Handled;
@@ -335,7 +335,7 @@ public Action Cmd_mmn(int client, int args)
 
 public Action Cmd_autogive(int client, int args)
 {
-	if (cv_autoGive.IntValue == -1)
+	if (cv_autoGive.IntValue == -1 && client > 0)
 	{
 		PrintToChat(client, "\x04自动给予物资功能当前是完全禁用的");
 		return Plugin_Handled;
