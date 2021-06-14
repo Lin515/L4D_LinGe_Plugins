@@ -17,7 +17,7 @@
   进入旁观。
 - **!afk**  
   快速闲置。  
-  本插件不修复多人房间下的闲置BUG，有需求建议安装闲置修复插件：[survivor_afk_fix](https://github.com/LuxLuma/Left-4-fix/tree/master/left 4 fix/survivors/survivor_afk_fix)。
+  本插件不修复多人房间下的闲置BUG，有需求建议安装闲置修复插件：[survivor_afk_fix](https://github.com/LuxLuma/Left-4-fix/tree/master/left%204%20fix/survivors/survivor_afk_fix)。
 - **!tp**  
   传送指令，可以将自己快速传送到别的生还者位置上。主要方便掉队或卡住的玩家。  
   默认为所有人可用，0CD，cfg文件中可对该指令进行设置。
