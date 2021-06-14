@@ -6,8 +6,8 @@
 请注意，这个插件只适用于战役或药役，有些药役是基于对抗修改的也可以用，但是正常对抗模式应禁用本插件。
 
 **支持游戏：求生之路2**  
-**建议插件平台：SourceMod 1.10.0**
-**依赖：[left4dhooks&dhooks](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/%E4%BE%9D%E8%B5%96%E7%9A%84%E6%89%A9%E5%B1%95%E4%B8%8E%E6%8F%92%E4%BB%B6/left4dhooks%26dhooks) [LinGe_Library]([L4D_LinGe_Plugins/LinGe_Library at main · LinGe515/L4D_LinGe_Plugins (github.com)](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/LinGe_Library))**
+**建议插件平台：SourceMod 1.10.0**  
+**依赖：[left4dhooks&dhooks](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/%E4%BE%9D%E8%B5%96%E7%9A%84%E6%89%A9%E5%B1%95%E4%B8%8E%E6%8F%92%E4%BB%B6/left4dhooks%26dhooks) [LinGe_Library](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/LinGe_Library)**
 
 ## 功能说明
 
