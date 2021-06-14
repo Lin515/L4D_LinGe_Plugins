@@ -17,6 +17,7 @@ ConVar cv_hostingLobby;
 ConVar cv_allowBotGame;
 ConVar cv_autoLobby;
 ConVar cv_autoHibernate;
+ConVar cv_allowHibernate;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -34,6 +35,7 @@ public void OnPluginStart()
 	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
 	cv_hostingLobby = FindConVar("sv_hosting_lobby");
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
+	cv_allowHibernate = FindConVar("sv_hibernate_when_empty");
 
 	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
@@ -41,10 +43,7 @@ public void OnPluginStart()
 
 public void OnMapStart()
 {
-	if (cv_autoLobby.IntValue == 1)
-		cv_allowLobby.SetInt(1);
-	if (cv_autoHibernate.IntValue == 1)
-		cv_allowBotGame.SetInt(0);
+	CheckHasHuman();
 }
 
 public bool OnClientConnect(int client)
@@ -73,8 +72,12 @@ public void OnClientDisconnect(int client)
 		return;
 	CreateTimer(0.1, Timer_CheckHasHuman);
 }
-
 public Action Timer_CheckHasHuman(Handle timer)
+{
+	CheckHasHuman();
+}
+
+void CheckHasHuman()
 {
 	if (GetHumans(true) == 0)
 	{
@@ -82,6 +85,9 @@ public Action Timer_CheckHasHuman(Handle timer)
 			cv_allowLobby.SetInt(1);
 
 		if (cv_autoHibernate.IntValue == 1)
+		{
 			cv_allowBotGame.SetInt(0);
+			cv_allowHibernate.SetInt(1);
+		}
 	}
 }
