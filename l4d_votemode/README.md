@@ -20,4 +20,4 @@
 - **!modeforce**  
   打开更换模式菜单，使用此指令更换模式无需经过投票。仅具有ROOT权限管理员可用。
 
-插件使用方法与我的另一个插件[l4d_mapvote]([L4D_LinGe_Plugins/l4d_mapvote at main · LinGe515/L4D_LinGe_Plugins (github.com)](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/l4d_mapvote))基本一样，这两个插件都是基于原版的l4d_votemode修改的。
+插件使用方法与我的另一个插件[l4d_mapvote](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/l4d_mapvote)基本一样，它们都是基于原版的l4d_votemode修改的。
