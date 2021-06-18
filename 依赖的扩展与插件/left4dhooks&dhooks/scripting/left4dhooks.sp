@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.38"
+#define PLUGIN_VERSION		"1.40"
 
 #define DEBUG				0
 // #define DEBUG			1	// Prints addresses + detour info (only use for debugging, slows server down)
@@ -37,6 +37,14 @@
 
 ========================================================================================
 	Change Log:
+
+1.40 (16-Jun-2021)
+	- L4D2: Fixed various offsets breaking from "2.2.1.3" game update. Thanks to "Nuki" for reporting and helping.
+
+1.39 (16-Jun-2021)
+	- Changed command "sm_l4dd_detours" results displayed to be read easier.
+	- L4D2: Fixed signatures breaking from "2.2.1.3" game update. Thanks to "Crasher_3637" for fixing.
+	- L4D2: Fixed "VanillaModeOffset" in Linux breaking from "2.2.1.3" game update. Thanks to "Accelerator74" for fixing.
 
 1.38 (28-Apr-2021)
 	- Changed native "L4D2_IsReachable" to allow using team 2 and team 4.
@@ -2175,14 +2183,14 @@ void CheckRequiredDetours(int client = 0)
 					{
 						StopProfiling(g_vProf);
 						g_fProf += GetProfilerTime(g_vProf);
-						PrintToServer("<FORCED> detour %s", forwards);
+						ReplyToCommand(client - 1, "%40s> %s", "FORCED DETOUR", forwards);
 						StartProfiling(g_vProf);
 					}
 					#endif
 
 					if( client )
 					{
-						ReplyToCommand(client - 1, "<FORCED> detour %s", forwards);
+						ReplyToCommand(client - 1, "%40s> %s", "FORCED DETOUR", forwards);
 					}
 				}
 				// Check if used
@@ -2195,14 +2203,14 @@ void CheckRequiredDetours(int client = 0)
 					if( client == 0 )
 					{
 						#if DETOUR_ALL
-						filename = "<THIS_PLUGIN_TEST>";
+						filename = "THIS_PLUGIN_TEST";
 						#else
 						GetPluginFilename(hPlug, filename, sizeof(filename));
 						#endif
 
 						StopProfiling(g_vProf);
 						g_fProf += GetProfilerTime(g_vProf);
-						PrintToServer("<%s> %s", filename, forwards);
+						PrintToServer("%40s> %s", filename, forwards);
 						StartProfiling(g_vProf);
 					}
 					#endif
@@ -2210,10 +2218,10 @@ void CheckRequiredDetours(int client = 0)
 					if( client )
 					{
 						#if DETOUR_ALL
-						ReplyToCommand(client - 1, "<FORCED> detour %s", forwards);
+						ReplyToCommand(client - 1, "%40s %s", "FORCED DETOUR", forwards);
 						#else
 						GetPluginFilename(hPlug, filename, sizeof(filename));
-						ReplyToCommand(client - 1, "<%s> %s", filename, forwards);
+						ReplyToCommand(client - 1, "%40s> %s", filename, forwards);
 						#endif
 					}
 				}

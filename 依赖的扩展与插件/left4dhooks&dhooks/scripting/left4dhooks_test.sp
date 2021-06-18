@@ -298,13 +298,13 @@ Action OnAnimPost(int client, int &anim)
 		switch( model[29] )
 		{
 			// case 'c': { Format(model, sizeof(model), "coach");		anim = -1; }
-			case 'b': { Format(model, sizeof(model), "gambler");	anim = 631; }
-			case 'h': { Format(model, sizeof(model), "mechanic");	anim = 636; }
-			case 'd': { Format(model, sizeof(model), "producer");	anim = 639; }
-			case 'v': { Format(model, sizeof(model), "NamVet");		anim = 539; }
-			case 'e': { Format(model, sizeof(model), "Biker");		anim = 542; }
-			case 'a': { Format(model, sizeof(model), "Manager");	anim = 539; }
-			case 'n': { Format(model, sizeof(model), "TeenGirl");	anim = 529; }
+			case 'b': { anim = 631; }	// gambler
+			case 'h': { anim = 636; }	// mechanic
+			case 'd': { anim = 639; }	// producer
+			case 'v': { anim = 539; }	// NamVet	
+			case 'e': { anim = 542; }	// Biker	
+			case 'a': { anim = 539; }	// Manager
+			case 'n': { anim = 529; }	// TeenGirl
 		}
 
 		return Plugin_Changed;

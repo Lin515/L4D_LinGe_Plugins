@@ -1,2 +1,3 @@
-[\[L4D & L4D2\] Left 4 DHooks Direct (1.38) [28-Apr-2021] - AlliedModders (alliedmods.net)](https://forums.alliedmods.net/showthread.php?t=321696)
+left4dhooks 作者发布地址
 
+[\[L4D & L4D2\] Left 4 DHooks Direct](https://forums.alliedmods.net/showthread.php?t=321696)
