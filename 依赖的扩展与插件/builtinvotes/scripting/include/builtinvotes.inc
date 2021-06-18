@@ -699,6 +699,7 @@ public Extension __ext_builtinvotes =
 
 public void __ext_builtinvotes_SetNTVOptional()
 {
+	MarkNativeAsOptional("CancelBuiltinVote");
 	MarkNativeAsOptional("CreateBuiltinVote");
 	MarkNativeAsOptional("DisplayBuiltinVote");
 	MarkNativeAsOptional("AddBuiltinVoteItem");

@@ -1,0 +1,55 @@
+"Phrases"
+{
+	"VoteMode_Force"
+	{
+		"chi"	"更换模式"
+	}
+	"VoteMode_Vote"
+	{
+		"chi"	"投票更换模式"
+	}
+	"VoteMode_Pass"
+	{
+		"chi"	"管理员通过了本次投票"
+	}
+	"VoteMode_Veto"
+	{
+		"chi"	"管理员否决了本次投票"
+	}
+	"VoteMode_AdminForce"
+	{
+		"chi"	"管理员已选择模式，本次投票取消"
+	}
+	"VoteMode_Spec"
+	{
+		"chi"	"旁观者不能发起投票"
+	}
+	"VoteMode_InProgress"
+	{
+		"chi"	"暂时还不能发起新投票"
+	}
+	"VoteMode_NoChangeMode"
+	{
+		"chi"	"当前不能发起模式变更"
+	}
+	"VoteMode_Change"
+	{
+		"chi"	"是否同意更换游戏模式为 {1} ?"
+	}
+	"VoteMode_Changing"
+	{
+		"chi"	"即将更换游戏模式为 {1} ..."
+	}
+	"VoteMode_VotePass"
+	{
+		"chi"	"同意 {1}，否定 {2}，本次投票通过"
+	}
+	"VoteMode_VoteFail"
+	{
+		"chi"	"同意 {1}，否定 {2}，本次投票未通过"
+	}
+	"VoteMode_VoteInvalid"
+	{
+		"chi"	"无人参与投票，本次投票无效"
+	}
+}

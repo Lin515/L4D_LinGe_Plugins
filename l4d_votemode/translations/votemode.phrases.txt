@@ -1,0 +1,59 @@
+"Phrases"
+{
+	"VoteMode_Force"
+	{
+		"en"		"Force Game Mode"
+	}
+	"VoteMode_Vote"
+	{
+		"en"		"Vote Game Mode"
+	}
+	"VoteMode_Pass"
+	{
+		"en"		"An admin has passed the current vote."
+	}
+	"VoteMode_Veto"
+	{
+		"en"		"An admin has ended the current vote."
+	}
+	"VoteMode_AdminForce"
+	{
+		"en"		"An admin has select a game mode."
+	}
+	"VoteMode_Spec"
+	{
+		"en"		"Spectator cannot call a vote."
+	}
+	"VoteMode_InProgress"
+	{
+		"en"		"Cannot start vote!"
+	}
+	"VoteMode_NoChangeMode"
+	{
+		"en"		"Cannot change Game Mode."
+	}
+	"VoteMode_Change"
+	{
+		"#format"	"{1:s}"
+		"en"		"Change Game Mode to {1}, Yes or No?"
+	}
+	"VoteMode_Changing"
+	{
+		"#format"	"{1:s}"
+		"en"		"Changing to {1} ..."
+	}
+	"VoteMode_VotePass"
+	{
+		"#format"	"{1:d},{2:d}"
+		"en"		"Yes {1}, No {2}, Vote successful."
+	}
+	"VoteMode_VoteFail"
+	{
+		"#format"	"{1:d},{2:d}"
+		"en"		"Yes {1}, No {2}, Vote failed."
+	}
+	"VoteMode_VoteInvalid"
+	{
+		"en"		"No one voted, Vote failed."
+	}
+}
