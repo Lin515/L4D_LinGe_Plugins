@@ -1,6 +1,6 @@
 // 适用于战役模式的多人控制 主要是自用
 // 代码大量参考（复制~）了望夜多人插件(R_smc)与豆瓣多人插件（l4d2_multislots SwiftReal, MI 5, 豆瓣）
-
+#pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Library>
@@ -942,7 +942,7 @@ void LoadGameDataFile()
 	StartPrepSDKCall(SDKCall_Player);
 	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, SDKCall_SetHumanSpec_Key))
 	{
-		PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer)
+		PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);
 		h_SetHumanSpec = EndPrepSDKCall();
 		if (h_SetHumanSpec == INVALID_HANDLE)
 			LogError("无法创建SDKCall ： SurvivorBot::SetHumanSpectator");
@@ -954,7 +954,7 @@ void LoadGameDataFile()
 	StartPrepSDKCall(SDKCall_Player);
 	if (PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, SDKCall_TakeOverBot_Key))
 	{
-		PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain)
+		PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain);
 		h_TakeOverBot = EndPrepSDKCall();
 		if (h_TakeOverBot == INVALID_HANDLE)
 			LogError("无法创建SDKCall ： CTerrorPlayer::TakeOverBot");

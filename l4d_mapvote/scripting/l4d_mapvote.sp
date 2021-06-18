@@ -1,5 +1,8 @@
 // 本插件编写参考 SilverShot l4d_votemode.sp
 
+#pragma semicolon 1
+#pragma newdecls required
+
 #include <sourcemod>
 #include <adminmenu>
 #include <LinGe_Library>
@@ -10,7 +13,7 @@
 #define CONFIG_MAPVOTE			"data/l4d_mapvote.cfg"
 
 public Plugin myinfo = {
-	name = "[L4D] Map Vote",
+	name = "[L4D & L4D2] Map Vote",
 	author = "LinGe, SilverShot",
 	description = "投票换图",
 	version = "2.1",
@@ -286,7 +289,7 @@ void VoteMenu_Select(int client, bool all=false)
 		return;
 	}
 
-	int val = g_modeClass.Get(g_baseMode);
+	int val = g_modeClass.Get(view_as<int>(g_baseMode));
 	if (val!=-1 && !all)
 	{
 		g_selected[client] = val;
@@ -384,7 +387,7 @@ void MapSelect(int client, int selectedMap, int selectedClass)
 		int idx = g_modeClass.FindValue(selectedClass);
 		if (idx != -1)
 		{
-			g_newMode = idx;
+			g_newMode = view_as<BaseMode>(idx);
 			// 如果指定模式与当前模式一致则无需更换模式
 			if (g_newMode == g_baseMode)
 				g_newMode = INVALID;
@@ -452,7 +455,7 @@ void StartVote(int client)
 	}
 }
 
-public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1, param2)
+public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, int param1, int param2)
 {
 	char sBuffer[128];
 	Format(sBuffer, sizeof(sBuffer), "即将更换地图为 %s%s .", g_mapNames[g_newMap], g_modeName[g_newMode]);
@@ -487,7 +490,7 @@ public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, param1,
 				CreateTimer(3.0, delayChangeMap);
 			}
 			else
-				DisplayBuiltinVoteFail(vote, BuiltinVoteFailReason:param1);
+				DisplayBuiltinVoteFail(vote, view_as<BuiltinVoteFailReason>(param1));
 		}
 		// 投票动作结束
 		case BuiltinVoteAction_End:
@@ -513,12 +516,12 @@ public int Vote_ActionHandler_Menu(Menu menu, MenuAction action, int param1, int
 				yes = totalVotes - winningVotes;
 			if (yes > g_iNumPlayers-yes)
 			{
-				PrintToChatAll("\x04同意票数\x03 %d\x04，否定票数\x03 %d\x04，本次投票通过", yes, g_iNumPlayers-yes);
+				PrintToChatAll("\x04同意\x03 %d\x04，否定\x03 %d\x04，本次投票通过", yes, g_iNumPlayers-yes);
 				ChangeMap();
 			}
 			else
 			{
-				PrintToChatAll("\x04同意票数\x03 %d\x04，否定票数\x03 %d\x04，本次投票未通过", yes, g_iNumPlayers-yes);
+				PrintToChatAll("\x04同意\x03 %d\x04，否定\x03 %d\x04，本次投票未通过", yes, g_iNumPlayers-yes);
 			}
 		}
 		// 投票被取消

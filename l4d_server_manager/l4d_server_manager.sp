@@ -1,3 +1,4 @@
+#pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Function>
@@ -12,17 +13,17 @@ public Plugin myinfo = {
 	url = "https://github.com/LinGe515"
 };
 
-ConVar cv_allowLobby;
 ConVar cv_hostingLobby;
+ConVar cv_allowLobby;
 ConVar cv_allowBotGame;
+ConVar cv_allowHibernate;
 ConVar cv_autoLobby;
 ConVar cv_autoHibernate;
-ConVar cv_allowHibernate;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	EngineVersion game = GetEngineVersion();
-	if (game!=Engine_Left4Dead && game != Engine_Left4Dead2)
+	if (game!=Engine_Left4Dead && game!=Engine_Left4Dead2)
 	{
 		strcopy(error, err_max, "本插件只支持 Left 4 Dead 1&2 .");
 		return APLRes_SilentFailure;
@@ -32,8 +33,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
 	cv_hostingLobby = FindConVar("sv_hosting_lobby");
+	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 	cv_allowHibernate = FindConVar("sv_hibernate_when_empty");
 
@@ -70,7 +71,7 @@ public void OnClientDisconnect(int client)
 {
 	if (IsFakeClient(client))
 		return;
-	CreateTimer(0.1, Timer_CheckHasHuman);
+	CreateTimer(1.0, Timer_CheckHasHuman);
 }
 public Action Timer_CheckHasHuman(Handle timer)
 {
@@ -82,7 +83,9 @@ void CheckHasHuman()
 	if (GetHumans(true) == 0)
 	{
 		if (cv_autoLobby.IntValue == 1)
+		{
 			cv_allowLobby.SetInt(1);
+		}
 
 		if (cv_autoHibernate.IntValue == 1)
 		{
