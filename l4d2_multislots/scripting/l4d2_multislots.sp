@@ -1,6 +1,7 @@
 // 适用于战役模式的多人控制 主要是自用
 // 代码大量参考（复制~）了望夜多人插件(R_smc)与豆瓣多人插件（l4d2_multislots SwiftReal, MI 5, 豆瓣）
 #pragma semicolon 1
+#pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
 #include <LinGe_Library>
@@ -299,7 +300,7 @@ public Action Cmd_mmn(int client, int args)
 		{
 			// 查看多倍物资补给状态
 			if (cv_autoSupply.IntValue == 1)
-				PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
+				PrintToChatAll("\x04自动多倍物资补给\x03 已开启\x04，当前倍数为\x03 %d", g_nowMultiple);
 			else
 				PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
 		}
@@ -310,13 +311,13 @@ public Action Cmd_mmn(int client, int args)
 
 		if (strcmp(buffer, "on", false) == 0)
 		{
-			cv_autoSupply.SetInt(1);
 			PrintToChatAll("\x04自动多倍物资补给\x03 已开启");
+			cv_autoSupply.SetInt(1);
 		}
 		else if (strcmp(buffer, "off", false) == 0)
 		{
-			cv_autoSupply.SetInt(0);
 			PrintToChatAll("\x04自动多倍物资补给\x03 已关闭");
+			cv_autoSupply.SetInt(0);
 		}
 		else if (strcmp(buffer, "clear", false) == 0 && 0 == client)
 		{
@@ -440,9 +441,9 @@ public void OnMapEnd()
 public Action Event_round_start(Event event, const char[] name, bool dontBroadcast)
 {
 	g_allHumanInGame = false;
-	CreateTimer(1.0, Timer_CheckFirstSurvivors, _, TIMER_REPEAT);
+	CreateTimer(1.0, Timer_HasClient, _, TIMER_REPEAT);
 }
-public Action Timer_CheckFirstSurvivors(Handle timer, any multiple)
+public Action Timer_HasClient(Handle timer, any multiple)
 {
 	if (GetClients() == 0)
 		return Plugin_Continue;
@@ -590,7 +591,7 @@ public int TpMenuHandler(Menu menu, MenuAction action, int client, int curSel)
 	}
 }
 
-// 设置物资补给倍数，参数为0则根据当前玩家数量自动设置，若未开启多倍物资则重置为1
+// 设置物资补给倍数，参数为0则根据当前生还者玩家数量自动设置，若未开启多倍物资则重置为1
 void SetMultiple(int num=0)
 {
 	if (0 == num)
@@ -654,7 +655,8 @@ void KickAllBot(bool all=true)
 	}
 }
 
-int JoinSurvivor(client)
+// 使client加入生还者 会自动判断client有效性
+int JoinSurvivor(int client)
 {
 	if (!IsValidClient(client)) // 判断client有效性
 		return 4;
@@ -902,18 +904,18 @@ void LoadSDKCallFunction()
 	char filePath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, filePath, sizeof(filePath), "gamedata/%s.txt", GAMEDATAFILE);
 	if (FileExists(filePath))
-		LoadGameDataFile();
+		LoadGameData();
 	else
 	{
 		LogError("未找到文件 %s ，将自动创建", filePath);
 		if (CreateGameDataFile(filePath))
-			LoadGameDataFile();
+			LoadGameData();
 		else
 			LogError("创建文件 %s 失败", filePath);
 	}
 }
 
-void LoadGameDataFile()
+void LoadGameData()
 {
 	h_RoundRespawn = INVALID_HANDLE;
 	h_SetHumanSpec = INVALID_HANDLE;

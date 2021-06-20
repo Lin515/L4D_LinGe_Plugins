@@ -8,4 +8,6 @@
   投票换图插件，在配置文件可添加三方图。默认使用游戏内置投票，依赖[builtinvotes](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/builtinvotes)扩展。
 - **l4d_server_manager**  
   一个简单的服务器管理插件，让服务器动态管理大厅和自动休眠。依赖[left4dhooks&dhooks](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/left4dhooks%26dhooks)。
+- **l4d_votemode**  
+  基于Silver的l4d_votemode修改，依赖[builtinvotes](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/builtinvotes)扩展来发起游戏内置投票。
 
