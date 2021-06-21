@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.40"
+#define PLUGIN_VERSION		"1.41"
 
 #define DEBUG				0
 // #define DEBUG			1	// Prints addresses + detour info (only use for debugging, slows server down)
@@ -38,13 +38,19 @@
 ========================================================================================
 	Change Log:
 
+1.41 (18-Jun-2021)
+	- L4D2: Fixed "InvulnerabilityTimer" offset. Thanks to "Nuki" for helping.
+	- GameData .txt file updated.
+
 1.40 (16-Jun-2021)
 	- L4D2: Fixed various offsets breaking from "2.2.1.3" game update. Thanks to "Nuki" for reporting and helping.
+	- GameData .txt file updated.
 
 1.39 (16-Jun-2021)
 	- Changed command "sm_l4dd_detours" results displayed to be read easier.
 	- L4D2: Fixed signatures breaking from "2.2.1.3" game update. Thanks to "Crasher_3637" for fixing.
 	- L4D2: Fixed "VanillaModeOffset" in Linux breaking from "2.2.1.3" game update. Thanks to "Accelerator74" for fixing.
+	- GameData .txt file updated.
 
 1.38 (28-Apr-2021)
 	- Changed native "L4D2_IsReachable" to allow using team 2 and team 4.
@@ -1933,6 +1939,7 @@ public MRESReturn AddonsDisabler(int pThis, Handle hReturn, Handle hParams)
 		int playerSlot = LoadFromAddress(view_as<Address>(ptr + g_iAddonEclipse1), NumberType_Int8);
 		// The playerslot is an index into `CBaseServer::m_Clients`, and SourceMod's client entity indexes are just `m_Clients` index plus 1.
 		int client = playerSlot + 1;
+
 		#if DEBUG
 		PrintToServer("#### AddonCheck for %d", client);
 		#endif

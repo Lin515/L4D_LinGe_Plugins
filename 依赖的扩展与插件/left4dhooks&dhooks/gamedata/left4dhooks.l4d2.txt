@@ -1102,8 +1102,8 @@
 			// Can be found in the "CTerrorPlayer::IsInvulnerable" function
 			"InvulnerabilityTimer"
 			{
-				"windows"	"11860" // 2.2.1.3
-				"linux"		"11880" // 2.2.1.3
+				"windows"	"11892" // 2.2.1.3
+				"linux"		"11872" // 2.2.1.3
 			}
 			// Can be found near the text "TANK OFFER: Player %s has %d tickets\n" in that section above, where the line reads "mov     edx, [ebx+30A8h]" - it's this value
 			"m_iTankTickets"
@@ -2837,6 +2837,9 @@
 			// ====================================================================================================
 			// ADDONS DISABLER
 			// ====================================================================================================
+			// Details on finding offsets can be found here: https://github.com/ProdigySim/left4dhooks/pull/1
+			// Big thanks to "ProdigySim" for updating for The Last Stand update.
+
 			/*
 			* CBaseServer::FillServerInfo(SVC_ServerInfo *)
 			*/
