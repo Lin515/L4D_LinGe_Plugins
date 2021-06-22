@@ -5,6 +5,30 @@
 
 // 一些常用函数
 
+// L4D2_RunScript 来源 Silver https://forums.alliedmods.net/showthread.php?p=2657025
+// 用logic_script实体来执行一段vscript脚本代码
+// 控制台指令script具有相同的功能 不过script是cheats指令
+// 并且据Silvers所说script指令似乎存在内存泄漏 所以通过实体来执行代码更优一点
+stock void L4D2_RunScript(const char[] sCode)
+{
+	// 获取 logic_script 实体
+	static int iScriptLogic = FindEntityByClassname(-1, "logic_script");
+	if ( iScriptLogic == INVALID_ENT_REFERENCE || !IsValidEntity(iScriptLogic) )
+	{
+		iScriptLogic = EntIndexToEntRef(CreateEntityByName("logic_script"));
+		if ( iScriptLogic == INVALID_ENT_REFERENCE || !IsValidEntity(iScriptLogic) )
+		{
+			LogError("Could not create 'logic_script'");
+			return;
+		}
+
+		DispatchSpawn(iScriptLogic);
+	}
+
+	SetVariantString(sCode);
+	AcceptEntityInput(iScriptLogic, "RunScriptCode");
+}
+
 // 传送
 stock bool Teleport(int client, int target)
 {
@@ -106,7 +130,22 @@ stock int SetKeyValueByClassname(const char[] className, const char[] key, const
 	return count;
 }
 
-// 判断某个插件是否正在运行
+/*	判断某个插件是否正在运行
+	传入的插件名是Plugin myinfo中的name元素的值
+	sm plugins list 指令列出的插件名字也是这个值
+	例如这是left4dhooks的myinfo
+
+public Plugin myinfo =
+{
+	name = "[L4D & L4D2] Left 4 DHooks Direct",
+	author = "SilverShot",
+	……
+}
+
+	那么判断left4dhooks是否正在运行就是
+	IsPluginRunning("[L4D & L4D2] Left 4 DHooks Direct")
+	必须一字不差，区分大小写
+*/
 stock bool IsPluginRunning(const char[] name)
 {
 	Handle iter = GetPluginIterator();
@@ -183,10 +222,7 @@ stock bool IsValidClient(int client, bool noNeedInGame=false)
 // 从网络属性去判断client是否存活
 stock bool IsAlive(int client)
 {
-	if (GetEntProp(client, Prop_Send, "m_lifeState"))
-		return false;
-	else
-		return true;
+	return GetEntProp(client, Prop_Send, "m_lifeState") == 0;
 }
 
 // 所有玩家是否已载入到游戏 主要用于每回合开始阶段检测
@@ -378,8 +414,10 @@ stock int GetIdleSurvivors()
 	return num;
 }
 
-// 真实旁观数（不含闲置）
-stock int GetSpectators()
+// 旁观数
+// idle=true 返回真实旁观数+闲置
+// idle=false 返回真实旁观数
+stock int GetSpectators(bool idle=false)
 {
 	int num = 0;
 	for (int i=1; i<=MaxClients; i++)
@@ -390,5 +428,8 @@ stock int GetSpectators()
 				num++;
 		}
 	}
-	return num-GetIdleSurvivors();
+	if (idle)
+		return num;
+	else
+		return num-GetIdleSurvivors();
 }
