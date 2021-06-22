@@ -591,16 +591,16 @@ public int TpMenuHandler(Menu menu, MenuAction action, int client, int curSel)
 	}
 }
 
-// 设置物资补给倍数，参数为0则根据当前生还者玩家数量自动设置，若未开启多倍物资则重置为1
+// 设置物资补给倍数，参数为0则根据当前生还者数量自动设置，若未开启多倍物资则重置为1
 void SetMultiple(int num=0)
 {
 	if (0 == num)
 	{
 		if (cv_autoSupply.IntValue == 1)
 		{
-			int playerNum = GetPlayers();
-			num = playerNum / 4;
-			if (playerNum%4 != 0 || 0 == num)
+			int survivors = GetSurvivors();
+			num = survivors / 4;
+			if (survivors%4 != 0 || 0 == num)
 				num++;
 		}
 		else
@@ -767,17 +767,15 @@ void GivePlayerSupply(int client)
 		BypassAndExecuteCommand(client, "give", "smg_mp5");
 }
 
-// 当前在线的玩家数量（生还+闲置）
-int GetPlayers()
+// 当前在线的玩家数量（生还+闲置+真实旁观）
+stock int GetPlayers()
 {
 	int numplayers = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientInGame(i) && GetClientTeam(i) == 2)
+		if (IsClientInGame(i) && GetClientTeam(i) != 3)
 		{
 			if(!IsFakeClient(i))
-				numplayers++;
-			else if (GetHumanClient(i) > 0)
 				numplayers++;
 		}
 	}
