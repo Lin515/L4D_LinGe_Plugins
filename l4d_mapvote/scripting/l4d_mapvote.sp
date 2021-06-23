@@ -56,6 +56,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 	__ext_builtinvotes_SetNTVOptional();
+	MarkNativeAsOptional("CancelBuiltinVote");
 	return APLRes_Success;
 }
 
