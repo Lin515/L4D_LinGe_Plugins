@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.1",
+	version = "2.2",
 	url = "https://github.com/LinGe515"
 };
 
@@ -40,7 +40,7 @@ ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allHumanInGame = true; // 所有玩家是否已经载入 默认为true是为了在游戏中途加载插件时能正常工作
 
-bool g_autoJoin[MAXPLAYERS+1] = false; // 哪些玩家不自动加入
+bool g_autoJoin[MAXPLAYERS+1] = true; // 哪些玩家自动加入生还者
 int g_lastTpTime[MAXPLAYERS+1] = 0;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -500,10 +500,10 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 				if (cv_autoJoin.IntValue==1 && g_autoJoin[client])
 					CreateTimer(1.0, Timer_JoinSurvivor, client);
 			}
-			// 自动更改物资倍数需所有玩家已完成载入
-			if (g_allHumanInGame && cv_autoSupply.IntValue == 1)
-				CreateTimer(0.5, Timer_SetMultiple);
 		}
+		// 自动更改物资倍数需所有玩家已完成载入
+		if (g_allHumanInGame && cv_autoSupply.IntValue == 1)
+			CreateTimer(0.5, Timer_SetMultiple);
 	}
 }
 public Action Timer_SetMultiple(Handle timer)
