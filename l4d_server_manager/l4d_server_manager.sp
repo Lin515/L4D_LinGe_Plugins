@@ -1,7 +1,6 @@
 #pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
-#include <LinGe_Function>
 #include <left4dhooks>
 
 // 这个插件主要是自用 就懒得说太多具体作用了
@@ -93,4 +92,21 @@ void CheckHasHuman()
 			cv_allowHibernate.SetInt(1);
 		}
 	}
+}
+
+// 当前在线的全部真实玩家数
+stock int GetHumans(bool noNeedInGame=false)
+{
+	int num = 0;
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientConnected(i) && !IsFakeClient(i))
+		{
+			if (IsClientInGame(i) || noNeedInGame)
+			{
+				num++;
+			}
+		}
+	}
+	return num;
 }
