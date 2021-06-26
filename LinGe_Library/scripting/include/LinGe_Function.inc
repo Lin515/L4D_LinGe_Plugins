@@ -2,6 +2,7 @@
 	#endinput
 #endif
 #define _LinGe_Function_included_
+#include <sdktools>
 
 // 一些常用函数
 
@@ -12,17 +13,21 @@
 stock void L4D2_RunScript(const char[] sCode)
 {
 	// 获取 logic_script 实体
-	static int iScriptLogic = FindEntityByClassname(-1, "logic_script");
+	static int iScriptLogic = INVALID_ENT_REFERENCE;
 	if ( iScriptLogic == INVALID_ENT_REFERENCE || !IsValidEntity(iScriptLogic) )
 	{
-		iScriptLogic = EntIndexToEntRef(CreateEntityByName("logic_script"));
+		iScriptLogic = FindEntityByClassname(-1, "logic_script");
+		// 如果查找不到则创建
 		if ( iScriptLogic == INVALID_ENT_REFERENCE || !IsValidEntity(iScriptLogic) )
 		{
-			LogError("Could not create 'logic_script'");
-			return;
+			iScriptLogic = EntIndexToEntRef(CreateEntityByName("logic_script"));
+			if ( iScriptLogic == INVALID_ENT_REFERENCE || !IsValidEntity(iScriptLogic) )
+			{
+				LogError("Could not create 'logic_script'");
+				return;
+			}
+			DispatchSpawn(iScriptLogic);
 		}
-
-		DispatchSpawn(iScriptLogic);
 	}
 
 	SetVariantString(sCode);
