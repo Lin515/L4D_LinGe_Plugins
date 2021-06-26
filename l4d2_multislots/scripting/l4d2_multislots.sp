@@ -492,18 +492,22 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 
 	if (IsValidClient(client, true))
 	{
+		// 自动让玩家加入生还者
 		if (!IsFakeClient(client))
 		{
 			if (oldteam==0 && team!=2)
 			{
-				// 自动让其加入生还者
 				if (cv_autoJoin.IntValue==1 && g_autoJoin[client])
 					CreateTimer(1.0, Timer_JoinSurvivor, client);
 			}
 		}
 		// 自动更改物资倍数需所有玩家已完成载入
-		if (g_allHumanInGame && cv_autoSupply.IntValue == 1)
-			CreateTimer(0.5, Timer_SetMultiple);
+		if ( g_allHumanInGame && cv_autoSupply.IntValue == 1)
+		{
+			if ( (0 == oldteam && 2 == team)
+			|| (2 == oldteam && 0 == team) )
+				CreateTimer(1.2, Timer_SetMultiple);
+		}
 	}
 }
 public Action Timer_SetMultiple(Handle timer)
