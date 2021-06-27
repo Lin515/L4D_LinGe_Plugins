@@ -212,6 +212,30 @@ stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 	return ret;
 }
 
+// 一些操作网络属性的函数
+// 是否存活
+stock bool IsAlive(int client)
+{
+	return GetEntProp(client, Prop_Send, "m_lifeState") == 0;
+}
+// 是否倒地
+stock bool IsIncapacitated(int client)
+{
+	return GetEntProp(client, Prop_Send, "m_isIncapacitated") != 0;
+}
+
+// 获取生命值
+stock int GetHealth(int client)
+{
+	return GetEntProp(client, Prop_Send, "m_iHealth");
+}
+// 设置生命值
+stock void SetHealth(int client, int health)
+{
+	SetEntProp(client, Prop_Send, "m_iHealth", health);
+}
+
+
 // 是否是有效Client
 stock bool IsValidClient(int client, bool noNeedInGame=false)
 {
@@ -222,12 +246,6 @@ stock bool IsValidClient(int client, bool noNeedInGame=false)
 	if (!noNeedInGame && !IsClientInGame(client))
 		return false;
 	return true;
-}
-
-// 从网络属性去判断client是否存活
-stock bool IsAlive(int client)
-{
-	return GetEntProp(client, Prop_Send, "m_lifeState") == 0;
 }
 
 // 所有玩家是否已载入到游戏 主要用于每回合开始阶段检测
