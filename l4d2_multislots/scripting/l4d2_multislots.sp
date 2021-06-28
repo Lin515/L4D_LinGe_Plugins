@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.2",
+	version = "2.3",
 	url = "https://github.com/LinGe515"
 };
 
@@ -19,7 +19,7 @@ public Plugin myinfo = {
 Handle h_RoundRespawn = INVALID_HANDLE;
 Handle h_SetHumanSpec = INVALID_HANDLE;
 Handle h_TakeOverBot = INVALID_HANDLE;
-Handle h_SetObserverTarget = INVALID_HANDLE; // 保留不使用
+Handle h_SetObserverTarget = INVALID_HANDLE; // 该函数保留不使用
 
 ConVar cv_l4dSurvivorLimit;
 ConVar cv_svmaxplayers;
@@ -34,14 +34,14 @@ ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 
-bool g_isOnVersus; // 本插件不应该用在对抗中，但是可以用在基于对抗的药役中
-ArrayList g_autoGive; // 自动给予哪些
+bool g_isOnVersus = true; // 本插件不应该用在对抗中，但是可以用在基于对抗的药役中
+ArrayList g_autoGive; // 自动给予哪些物品
 ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allHumanInGame = true; // 所有玩家是否已经载入 默认为true是为了在游戏中途加载插件时能正常工作
 
 bool g_autoJoin[MAXPLAYERS+1] = true; // 哪些玩家自动加入生还者
-int g_lastTpTime[MAXPLAYERS+1] = 0;
+int g_lastTpTime[MAXPLAYERS+1] = 0; // 玩家上次使用tp时间
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -61,7 +61,7 @@ public void OnPluginStart()
 	cv_l4dSurvivorLimit	= FindConVar("survivor_limit");
 	cv_svmaxplayers		= FindConVar("sv_maxplayers");
 	cv_survivorLimit	= CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_SERVER_CAN_EXECUTE, true, 1.0, true, 32.0);
-	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数，不允许插件控制人数时本参数无效", FCVAR_SERVER_CAN_EXECUTE, true, 1.0, true, 32.0);
+	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数。不允许插件控制人数时本参数无效。", FCVAR_SERVER_CAN_EXECUTE, true, 1.0, true, 32.0);
 	cv_autoGive			= CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 1.0);
 	cv_autoSupply		= CreateConVar("l4d2_multislots_auto_supply", "1", "根据人数自动设置物资倍数 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 1.0);
 	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？0:不允许 1:允许且允许其它方式修改最大人数 2:只允许本插件控制最大人数", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
@@ -75,10 +75,7 @@ public void OnPluginStart()
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_autoSupply.AddChangeHook(AutoMultipleChanged);
 	if (null != cv_svmaxplayers)
-	{
 		cv_svmaxplayers.AddChangeHook(MaxplayersChanged);
-		cv_maxs.AddChangeHook(MaxplayersChanged);
-	}
 	AutoExecConfig(true, "l4d2_multislots");
 
 	RegAdminCmd("sm_forceaddbot", Cmd_forceaddbot, ADMFLAG_ROOT, "强制增加一个BOT，无视条件限制");
@@ -175,8 +172,8 @@ public Action Cmd_afk(int client, int args)
 		PrintToChat(client, "\x04死亡状态无权使用闲置");
 	else if (GetEntProp(client, Prop_Send, "m_isIncapacitated"))
 		PrintToChat(client, "\x04倒地时无法使用闲置");
-	else if (GetHumanSurvivors() == 1)
-		PrintToChat(client, "\x04只有一名玩家时无法使用闲置");
+	else if (GetPlayers(TEAM_SURVIVOR, false, true) == 1)
+		PrintToChat(client, "\x04只有一名玩家存活时无法使用闲置");
 	else
 		FakeClientCommand(client, "go_away_from_keyboard");
 	return Plugin_Handled;
@@ -210,7 +207,7 @@ public Action Cmd_tp(int client, int args)
 		PrintToChat(client, "\x04死亡状态无法使用传送");
 		return Plugin_Handled;
 	}
-	else if (GetAliveSurvivors() == 1)
+	else if (GetPlayers(TEAM_SURVIVOR, true, true) == 1)
 	{
 		PrintToChat(client, "\x04只有一名存活生还者时无法使用传送");
 		return Plugin_Handled;
@@ -408,19 +405,16 @@ public void SurvivorLimitChanged(ConVar convar, const char[] oldValue, const cha
 }
 public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
-	char name[50];
-	convar.GetName(name, sizeof(name));
-	if (strcmp(name, "l4d2_multislots_maxs")==0 && cv_allowSset.IntValue >= 1)
-		cv_svmaxplayers.SetInt(cv_maxs.IntValue);
-	// 若只允许本插件修改最大人数，则将最大人数始终锁定为本插件中的值
-	else if (strcmp(name, "sv_maxplayers")==0 && cv_allowSset.IntValue == 2)
-		cv_svmaxplayers.SetInt(cv_maxs.IntValue);
+	if (cv_allowSset.IntValue == 2)
+		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
+	else
+		cv_maxs.IntValue = cv_svmaxplayers.IntValue;
 }
 
 public void OnConfigsExecuted()
 {
 	if (cv_allowSset.IntValue >= 0)
-		cv_svmaxplayers.SetInt(cv_maxs.IntValue);
+		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
 	g_isOnVersus = (GetBaseMode() == OnVersus);
 }
 
@@ -467,7 +461,7 @@ public Action Timer_CheckAllHumanInGame(Handle timer)
 		SetMultiple();
 	g_allHumanInGame = true;
 	// 让没有加入游戏的玩家自动加入
-	if (GetSurvivors() > 0)
+	if (GetPlayers(TEAM_SURVIVOR) > 0)
 	{
 		for (int i=1; i<=MaxClients; i++)
 		{
@@ -498,7 +492,7 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 			if (oldteam==0 && team!=2)
 			{
 				if (cv_autoJoin.IntValue==1 && g_autoJoin[client])
-					CreateTimer(1.0, Timer_JoinSurvivor, client);
+					CreateTimer(1.0, Timer_AutoJoinSurvivor, client, TIMER_REPEAT);
 			}
 		}
 		// 自动更改物资倍数需所有玩家已完成载入
@@ -509,6 +503,23 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 				CreateTimer(1.2, Timer_SetMultiple);
 		}
 	}
+}
+public Action Timer_AutoJoinSurvivor(Handle timer, any client)
+{
+	if (IsClientConnected(client))
+	{
+		// 等待玩家完全进入游戏再使其自动加入
+		if (IsClientInGame(client))
+		{
+			JoinSurvivor(client);
+			return Plugin_Stop;
+		}
+		else
+		{
+			return Plugin_Continue;
+		}
+	}
+	return Plugin_Stop;
 }
 public Action Timer_SetMultiple(Handle timer)
 {
@@ -540,8 +551,9 @@ public int SsetMenuHandler(Handle menu, MenuAction action, int client, int itemN
 		{
 			char clientinfos[20];
 			GetMenuItem(menu, itemNum, clientinfos, sizeof(clientinfos));
-			cv_maxs.SetInt(StringToInt(clientinfos));
-			PrintToChatAll("\x04更改服务器的最大人数为\x04 \x03%i \x05人", cv_maxs.IntValue);
+			cv_maxs.IntValue = StringToInt(clientinfos);
+			cv_svmaxplayers.IntValue = cv_maxs.IntValue;
+			PrintToChatAll("\x04更改服务器的最大人数为\x04 \x03%i \x05人", cv_svmaxplayers.IntValue);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -602,8 +614,9 @@ void SetMultiple(int num=0)
 	{
 		if (cv_autoSupply.IntValue == 1)
 		{
-			int survivors = GetSurvivors();
+			int survivors = GetPlayers(TEAM_SURVIVOR);
 			num = survivors / 4;
+			// 向上取整且num最小为1
 			if (survivors%4 != 0 || 0 == num)
 				num++;
 		}
@@ -641,7 +654,7 @@ void KickAllBot(bool all=true)
 {
 	int kickCount = MaxClients;
 	if (!all)
-		kickCount = GetSurvivors() - cv_survivorLimit.IntValue;
+		kickCount = GetPlayers(TEAM_SURVIVOR) - cv_survivorLimit.IntValue;
 
 	for (int i=1; i<=MaxClients && kickCount>0; i++)
 	{
@@ -685,11 +698,11 @@ int JoinSurvivor(int client)
 	{
 		int ret = AddBot();
 		if (0 == ret)
-			CreateTimer(0.5, Timer_JoinSurvivor, client);
+			CreateTimer(0.5, Delay_JoinSurvivor, client);
 		return ret;
 	}
 }
-public Action Timer_JoinSurvivor(Handle timer, any client)
+public Action Delay_JoinSurvivor(Handle timer, any client)
 {
 	JoinSurvivor(client);
 }
@@ -701,7 +714,7 @@ int AddBot(bool force=false)
 	&& L4D_HasAnySurvivorLeftSafeArea() )
 		return -1;
 	if (!force && GetAliveBotSurvivors() >= GetSpectators()
-	&& GetSurvivors() >= cv_survivorLimit.IntValue )
+	&& GetPlayers(TEAM_SURVIVOR) >= cv_survivorLimit.IntValue )
 		return -2;
 
 	int bot = CreateFakeClient("survivor bot");
@@ -771,27 +784,12 @@ void GivePlayerSupply(int client)
 		BypassAndExecuteCommand(client, "give", "smg_mp5");
 }
 
-// 当前在线的玩家数量（生还+闲置+真实旁观）
-stock int GetPlayers()
-{
-	int numplayers = 0;
-	for (int i=1; i<=MaxClients; i++)
-	{
-		if (IsClientInGame(i) && GetClientTeam(i) != 3)
-		{
-			if(!IsFakeClient(i))
-				numplayers++;
-		}
-	}
-	return numplayers;
-}
-
 // 寻找一个可以被玩家接管的生还者BOT，若未找到则返回0
 int FindBotToTakeOver()
 {
 	for (int i=1; i<=MaxClients; i++)
 	{
-		if (IsClientConnected(i) && IsClientInGame(i))
+		if (IsClientInGame(i))
 		{
 			if (GetClientTeam(i) == 2 && IsFakeClient(i))
 			{

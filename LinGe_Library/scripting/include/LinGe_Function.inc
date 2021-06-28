@@ -338,46 +338,26 @@ stock int GetHumans(bool noNeedInGame=false)
 	return num;
 }
 
-// 生还者总数
-stock int GetSurvivors()
+#define TEAM_UNKNOWN	0
+#define TEAM_SPECTATOR	1
+#define TEAM_SURVIVOR	2
+#define TEAM_INFECTED	3
+// 快速获取指定类型的玩家数量
+// 若不指定任何参数 则获取所有IsClientInGame为真的client数量
+stock int GetPlayers(int team=TEAM_UNKNOWN, bool bot=true, bool alive=false)
 {
 	int num = 0;
 	for (int i=1; i<=MaxClients; i++)
 	{
 		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2)
-				num++;
-		}
-	}
-	return num;
-}
-
-// 真实玩家生还者数
-stock int GetHumanSurvivors()
-{
-	int num = 0;
-	for (int i=1; i<=MaxClients; i++)
-	{
-		if (IsClientInGame(i))
-		{
-			if (GetClientTeam(i) == 2 && !IsFakeClient(i))
-				num++;
-		}
-	}
-	return num;
-}
-
-// 存活生还者数
-stock int GetAliveSurvivors()
-{
-	int num = 0;
-	for (int i=1; i<=MaxClients; i++)
-	{
-		if (IsClientInGame(i))
-		{
-			if (GetClientTeam(i) == 2 && IsAlive(i))
-				num++;
+			if (TEAM_UNKNOWN != team && GetClientTeam(i) != team)
+				continue;
+			if (!bot && IsFakeClient(i))
+				continue;
+			if (alive && !IsAlive(i))
+				continue;
+			num++;
 		}
 	}
 	return num;
