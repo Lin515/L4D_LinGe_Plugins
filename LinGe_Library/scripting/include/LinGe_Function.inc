@@ -114,7 +114,7 @@ stock int IndexData(any data, const any[] arr, int size, int srtidx=0, bool reve
 }
 
 // 执行一次带有FCVAR_CHEAT标识的指令
-stock void BypassAndExecuteCommand(int client, const char[] cmd, const char[] params)
+stock void CheatCommand(int client, const char[] cmd, const char[] params)
 {
 	int flags = GetCommandFlags(cmd);
 	SetCommandFlags(cmd, flags & ~FCVAR_CHEAT);

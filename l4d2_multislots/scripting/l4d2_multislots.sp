@@ -413,7 +413,7 @@ public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[]
 
 public void OnConfigsExecuted()
 {
-	if (cv_allowSset.IntValue >= 0)
+	if (cv_allowSset.IntValue >= 0 && null != cv_svmaxplayers)
 		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
 	g_isOnVersus = (GetBaseMode() == OnVersus);
 }
@@ -777,11 +777,11 @@ void GivePlayerSupply(int client)
 		for (int i=0; i<len; i++)
 		{
 			g_autoGive.GetString(i, buffer, sizeof(buffer));
-			BypassAndExecuteCommand(client, "give", buffer);
+			CheatCommand(client, "give", buffer);
 		}
 	}
 	else
-		BypassAndExecuteCommand(client, "give", "smg_mp5");
+		CheatCommand(client, "give", "smg_mp5");
 }
 
 // 寻找一个可以被玩家接管的生还者BOT，若未找到则返回0
