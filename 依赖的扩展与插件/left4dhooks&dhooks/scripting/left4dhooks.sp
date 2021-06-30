@@ -18,13 +18,15 @@
 
 
 
-#define PLUGIN_VERSION		"1.41"
+#define PLUGIN_VERSION		"1.42"
 
 #define DEBUG				0
 // #define DEBUG			1	// Prints addresses + detour info (only use for debugging, slows server down)
 
 #define DETOUR_ALL			0	// Only enable required detours, for public release.
 // #define DETOUR_ALL		1	// Enable all detours, for testing.
+
+#define KILL_VSCRIPT		0	// 0=Keep VScript entity after using for "GetVScriptOutput". 1=Kill the entity after use.
 
 /*======================================================================================
 	Plugin Info:
@@ -37,6 +39,35 @@
 
 ========================================================================================
 	Change Log:
+
+1.42 (23-Jun-2021)
+	- L4D & L4D2 update:
+	- Added forward "L4D_OnVomitedUpon" when client is covered in vomit.
+	- Added forward "L4D_OnEnterGhostStatePre" with the ability to block entering ghost state.
+	- Changed 2 signatures to be compatible with detouring: "CTerrorPlayer::OnStaggered" and "CTerrorPlayer::OnVomitedUpon".
+
+	- L4D2 update only:
+
+	- Added forward "L4D2_OnHitByVomitJar" when a Bilejar explodes on clients.
+	- Added native "L4D2_NavAreaTravelDistance" to return the nav flow distance between two areas.
+	- Added native "L4D2_UseAdrenaline" to give a player the Adrenaline effect and health benefits.
+
+	- Added various natives as wrappers executing VScript code:
+		- These are slower than native SDKCalls, please report popular ones to convert to fast SDKCalls.
+		"L4D2_VScriptWrapper_GetMapNumber"
+		"L4D2_VScriptWrapper_HasEverBeenInjured"
+		"L4D2_VScriptWrapper_GetAliveDuration"
+		"L4D2_VScriptWrapper_IsDead"
+		"L4D2_VScriptWrapper_IsDying"
+		"L4D2_VScriptWrapper_UseAdrenaline"
+		"L4D2_VScriptWrapper_ReviveByDefib"
+		"L4D2_VScriptWrapper_ReviveFromIncap"
+		"L4D2_VScriptWrapper_GetSenseFlags"
+		"L4D2_VScriptWrapper_NavAreaBuildPath"
+		"L4D2_VScriptWrapper_NavAreaTravelDistance" // Added as a demonstration and test, SDKCall is available, use "L4D2_NavAreaTravelDistance" instead.
+
+	- Updated: Plugin, GameData and Include file. Both L4D1 and L4D2.
+	- Thanks to "Eärendil" for showing me how to call some VScript functions.
 
 1.41 (18-Jun-2021)
 	- L4D2: Fixed "InvulnerabilityTimer" offset. Thanks to "Nuki" for helping.
@@ -532,6 +563,7 @@ GlobalForward g_hForward_GetScriptValueFloat;
 GlobalForward g_hForward_GetScriptValueString;
 GlobalForward g_hForward_IsTeamFull;
 GlobalForward g_hForward_EnterGhostState;
+GlobalForward g_hForward_EnterGhostStatePre;
 GlobalForward g_hForward_TryOfferingTankBot;
 GlobalForward g_hForward_MobRushStart;
 GlobalForward g_hForward_SpawnITMob;
@@ -558,6 +590,8 @@ GlobalForward g_hForward_OnReplaceTank;
 GlobalForward g_hForward_OnUseHealingItems;
 GlobalForward g_hForward_OnFindScavengeItem;
 GlobalForward g_hForward_OnChooseVictim;
+GlobalForward g_hForward_OnVomitedUpon;
+GlobalForward g_hForward_OnHitByVomitJar;
 GlobalForward g_hForward_InfernoSpread;
 GlobalForward g_hForward_CTerrorWeapon_OnHit;
 GlobalForward g_hForward_OnPlayerStagger;
@@ -571,6 +605,7 @@ GlobalForward g_hForward_AddonsDisabler;
 
 // NATIVES - SDKCall
 // Silvers Natives
+Handle g_hSDK_Call_NavAreaTravelDistance;
 Handle g_hSDK_Call_GetLastKnownArea;
 Handle g_hSDK_Call_Deafen;
 Handle g_hSDK_Call_Dissolve;
@@ -580,6 +615,7 @@ Handle g_hSDK_Call_IsReachable;
 Handle g_hSDK_Call_HasPlayerControlledZombies;
 Handle g_hSDK_Call_PipeBombPrj;
 Handle g_hSDK_Call_SpitterPrj;
+Handle g_hSDK_Call_OnAdrenalineUsed;
 Handle g_hSDK_Call_ForceNextStage;
 Handle g_hSDK_Call_IsTankInPlay;
 Handle g_hSDK_Call_GetFurthestSurvivorFlow;
@@ -729,6 +765,8 @@ bool g_bLinuxOS;
 ConVar g_hCvarVScriptBuffer;
 ConVar g_hCvarAddonsEclipse;
 ConVar g_hCvarRescueDeadTime;
+ConVar g_hDecayDecay;
+ConVar g_hPillsHealth;
 
 #if DEBUG
 bool g_bLateLoad;
@@ -791,6 +829,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_hForward_SpawnITMob						= new GlobalForward("L4D_OnSpawnITMob",							ET_Event, Param_CellByRef);
 	g_hForward_SpawnMob							= new GlobalForward("L4D_OnSpawnMob",							ET_Event, Param_CellByRef);
 	g_hForward_EnterGhostState					= new GlobalForward("L4D_OnEnterGhostState",					ET_Event, Param_Cell);
+	g_hForward_EnterGhostStatePre				= new GlobalForward("L4D_OnEnterGhostStatePre",					ET_Event, Param_Cell);
 	g_hForward_IsTeamFull						= new GlobalForward("L4D_OnIsTeamFull",							ET_Event, Param_Cell, Param_CellByRef);
 	g_hForward_ClearTeamScores					= new GlobalForward("L4D_OnClearTeamScores",					ET_Event, Param_Cell);
 	g_hForward_SetCampaignScores				= new GlobalForward("L4D_OnSetCampaignScores",					ET_Event, Param_CellByRef, Param_CellByRef);
@@ -817,12 +856,14 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_hForward_OnUseHealingItems				= new GlobalForward("L4D2_OnUseHealingItems",					ET_Event, Param_Cell);
 	g_hForward_OnFindScavengeItem				= new GlobalForward("L4D2_OnFindScavengeItem",					ET_Event, Param_Cell, Param_CellByRef);
 	g_hForward_OnChooseVictim					= new GlobalForward("L4D2_OnChooseVictim",						ET_Event, Param_Cell, Param_CellByRef);
+	g_hForward_OnVomitedUpon					= new GlobalForward("L4D_OnVomitedUpon",						ET_Event, Param_Cell, Param_CellByRef, Param_CellByRef);
 	// g_hForward_InfectedShoved					= new GlobalForward("L4D_OnInfectedShoved",						ET_Event, Param_Cell, Param_Cell);
 	// g_hForward_OnWaterMove						= new GlobalForward("L4D2_OnWaterMove",							ET_Event, Param_Cell);
 	// g_hForward_GetRandomPZSpawnPos				= new GlobalForward("L4D_OnGetRandomPZSpawnPosition",			ET_Event, Param_CellByRef, Param_CellByRef, Param_CellByRef, Param_Array);
 
 	if( g_bLeft4Dead2 )
 	{
+		g_hForward_OnHitByVomitJar				= new GlobalForward("L4D2_OnHitByVomitJar",						ET_Event, Param_Cell, Param_CellByRef);
 		g_hForward_SpawnWitchBride				= new GlobalForward("L4D2_OnSpawnWitchBride",					ET_Event, Param_Array, Param_Array);
 		g_hForward_GetScriptValueInt			= new GlobalForward("L4D_OnGetScriptValueInt",					ET_Event, Param_String, Param_CellByRef);
 		g_hForward_GetScriptValueFloat			= new GlobalForward("L4D_OnGetScriptValueFloat",				ET_Event, Param_String, Param_FloatByRef);
@@ -840,7 +881,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	// ====================================================================================================
 	//									NATIVES
 	// L4D1 = 12 [left4downtown] + 43 - 0 (deprecated) [l4d_direct] + 15 [l4d2addresses] + 14 [silvers - mine!] + 4 [anim] = 88
-	// L4D2 = 52 [left4downtown] + 62 - 1 (deprecated) [l4d_direct] + 26 [l4d2addresses] + 22 [silvers - mine!] + 4 [anim] = 164
+	// L4D2 = 52 [left4downtown] + 62 - 1 (deprecated) [l4d_direct] + 26 [l4d2addresses] + 35 [silvers - mine!] + 4 [anim] = 177
 	// ====================================================================================================
 	// ANIMATION HOOK
 	CreateNative("AnimHookEnable",		 							Native_AnimHookEnable);
@@ -872,12 +913,27 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	{
 		CreateNative("L4D2_GetVScriptOutput",						Native_GetVScriptOutput);
 		CreateNative("L4D2_SpitterPrj",		 						Native_SpitterPrj);
+		CreateNative("L4D2_UseAdrenaline",		 					Native_OnAdrenalineUsed);
 		CreateNative("L4D2_GetCurrentFinaleStage",		 			Native_GetCurrentFinaleStage);
 		CreateNative("L4D2_ForceNextStage",		 					Native_ForceNextStage);
 		CreateNative("L4D2_IsTankInPlay",		 					Native_IsTankInPlay);
 		CreateNative("L4D2_IsReachable",		 					Native_IsReachable);
 		CreateNative("L4D2_GetFurthestSurvivorFlow",		 		Native_GetFurthestSurvivorFlow);
 		CreateNative("L4D2_GetScriptValueInt",						Native_GetScriptValueInt);
+
+		CreateNative("L4D2_NavAreaTravelDistance",		 			Native_NavAreaTravelDistance);
+
+		CreateNative("L4D2_VScriptWrapper_GetMapNumber",			Native_VS_GetMapNumber);
+		CreateNative("L4D2_VScriptWrapper_HasEverBeenInjured",		Native_VS_HasEverBeenInjured);
+		CreateNative("L4D2_VScriptWrapper_GetAliveDuration",		Native_VS_GetAliveDuration);
+		CreateNative("L4D2_VScriptWrapper_IsDead",					Native_VS_IsDead);
+		CreateNative("L4D2_VScriptWrapper_IsDying",					Native_VS_IsDying);
+		CreateNative("L4D2_VScriptWrapper_UseAdrenaline",			Native_VS_UseAdrenaline);
+		CreateNative("L4D2_VScriptWrapper_ReviveByDefib",			Native_VS_ReviveByDefib);
+		CreateNative("L4D2_VScriptWrapper_ReviveFromIncap",			Native_VS_ReviveFromIncap);
+		CreateNative("L4D2_VScriptWrapper_GetSenseFlags",			Native_VS_GetSenseFlags);
+		CreateNative("L4D2_VScriptWrapper_NavAreaBuildPath",		Native_VS_NavAreaBuildPath);
+		CreateNative("L4D2_VScriptWrapper_NavAreaTravelDistance",	Native_VS_NavAreaTravelDistance);
 		// CreateNative("L4D2_GetScriptValueFloat",					Native_GetScriptValueFloat); // Only returns default value provided.
 		// CreateNative("L4D2_GetScriptValueString",				Native_GetScriptValueString); // Not implemented, probably broken too, request if really required.
 	}
@@ -1259,6 +1315,9 @@ public void OnPluginStart()
 		g_hCvarAddonsEclipse = CreateConVar("l4d2_addons_eclipse", "-1", "Addons Manager (-1: use addonconfig; 0: disable addons; 1: enable addons.)", FCVAR_NOTIFY);
 		AutoExecConfig(true, "left4dhooks");
 		g_hCvarAddonsEclipse.AddChangeHook(ConVarChanged_Cvars);
+
+		g_hDecayDecay = FindConVar("pain_pills_decay_rate");
+		g_hPillsHealth = FindConVar("pain_pills_health_value");
 	}
 
 	g_hCvarRescueDeadTime = FindConVar("rescue_min_dead_time");
@@ -2029,6 +2088,7 @@ void SetupDetours(GameData hGameData = null)
 	CreateDetour(hGameData, SpawnITMob,							INVALID_FUNCTION,		"SpawnITMob",							"L4D_OnSpawnITMob");
 	CreateDetour(hGameData, SpawnMob,							INVALID_FUNCTION,		"SpawnMob",								"L4D_OnSpawnMob");
 	CreateDetour(hGameData, EnterGhostStatePre,					EnterGhostState,		"OnEnterGhostState",					"L4D_OnEnterGhostState");
+	CreateDetour(hGameData, EnterGhostStatePre,					EnterGhostState,		"OnEnterGhostState",					"L4D_OnEnterGhostStatePre", true); // Different forwards, same detour as above - same index.
 	CreateDetour(hGameData, IsTeamFullPre,						INVALID_FUNCTION,		"IsTeamFull",							"L4D_OnIsTeamFull");
 	CreateDetour(hGameData, ClearTeamScores,					INVALID_FUNCTION,		"ClearTeamScores",						"L4D_OnClearTeamScores");
 	CreateDetour(hGameData, SetCampaignScores,					INVALID_FUNCTION,		"SetCampaignScores",					"L4D_OnSetCampaignScores");
@@ -2058,6 +2118,7 @@ void SetupDetours(GameData hGameData = null)
 	CreateDetour(hGameData, OnUseHealingItems,					INVALID_FUNCTION,		"UseHealingItems",						"L4D2_OnUseHealingItems");
 	CreateDetour(hGameData, OnFindScavengeItemPre,				OnFindScavengeItem,		"FindScavengeItem",						"L4D2_OnFindScavengeItem");
 	CreateDetour(hGameData, OnChooseVictimPre,					OnChooseVictim,			"ChooseVictim",							"L4D2_OnChooseVictim");
+	CreateDetour(hGameData, OnVomitedUpon,						INVALID_FUNCTION,		"OnVomitedUpon",						"L4D_OnVomitedUpon");
 
 	if( !g_bLeft4Dead2 )
 	{
@@ -2068,6 +2129,7 @@ void SetupDetours(GameData hGameData = null)
 	}
 	else
 	{
+		CreateDetour(hGameData, OnHitByVomitJar,				INVALID_FUNCTION,		"OnHitByVomitJar",						"L4D2_OnHitByVomitJar");
 		CreateDetour(hGameData, SpawnSpecial,					INVALID_FUNCTION,		"SpawnSpecial",							"L4D_OnSpawnSpecial");
 		CreateDetour(hGameData, SpawnWitchBride,				INVALID_FUNCTION,		"SpawnWitchBride",						"L4D_OnSpawnWitchBride");
 		CreateDetour(hGameData, GetScriptValueInt,				INVALID_FUNCTION,		"GetScriptValueInt",					"L4D_OnGetScriptValueInt");
@@ -2190,12 +2252,12 @@ void CheckRequiredDetours(int client = 0)
 					{
 						StopProfiling(g_vProf);
 						g_fProf += GetProfilerTime(g_vProf);
-						ReplyToCommand(client - 1, "%40s> %s", "FORCED DETOUR", forwards);
+						PrintToServer("%40s> %s", "FORCED DETOUR", forwards);
 						StartProfiling(g_vProf);
 					}
 					#endif
 
-					if( client )
+					if( client > 0 )
 					{
 						ReplyToCommand(client - 1, "%40s> %s", "FORCED DETOUR", forwards);
 					}
@@ -2222,7 +2284,7 @@ void CheckRequiredDetours(int client = 0)
 					}
 					#endif
 
-					if( client )
+					if( client > 0 )
 					{
 						#if DETOUR_ALL
 						ReplyToCommand(client - 1, "%40s %s", "FORCED DETOUR", forwards);
@@ -2628,6 +2690,20 @@ void LoadGameData()
 	if( g_bLeft4Dead2 )
 	{
 		StartPrepSDKCall(SDKCall_Static);
+		if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "NavAreaTravelDistance") == false )
+		{
+			LogError("Failed to find signature: NavAreaTravelDistance");
+		} else {
+			PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
+			PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
+			PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
+			PrepSDKCall_SetReturnInfo(SDKType_Float, SDKPass_Plain);
+			g_hSDK_Call_NavAreaTravelDistance = EndPrepSDKCall();
+			if( g_hSDK_Call_NavAreaTravelDistance == null )
+				LogError("Failed to create SDKCall: NavAreaTravelDistance");
+		}
+
+		StartPrepSDKCall(SDKCall_Static);
 		if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CSpitterProjectile_Create") == false )
 		{
 			LogError("Failed to find signature: CSpitterProjectile_Create");
@@ -2640,7 +2716,18 @@ void LoadGameData()
 			PrepSDKCall_SetReturnInfo(SDKType_CBaseEntity, SDKPass_Pointer);
 			g_hSDK_Call_SpitterPrj = EndPrepSDKCall();
 			if( g_hSDK_Call_SpitterPrj == null )
-					LogError("Failed to create SDKCall: CSpitterProjectile_Create");
+				LogError("Failed to create SDKCall: CSpitterProjectile_Create");
+		}
+
+		StartPrepSDKCall(SDKCall_Player);
+		if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "OnAdrenalineUsed") == false )
+		{
+			LogError("Failed to find signature: OnAdrenalineUsed");
+		} else {
+			PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
+			g_hSDK_Call_OnAdrenalineUsed = EndPrepSDKCall();
+			if( g_hSDK_Call_OnAdrenalineUsed == null )
+				LogError("Failed to create SDKCall: OnAdrenalineUsed");
 		}
 
 		StartPrepSDKCall(SDKCall_Raw);
@@ -3976,6 +4063,36 @@ public int Native_SpitterPrj(Handle plugin, int numParams)
 	return SDKCall(g_hSDK_Call_SpitterPrj, vPos, vAng, vAng, vAng, client);
 }
 
+public int Native_OnAdrenalineUsed(Handle plugin, int numParams)
+{
+	ValidateNatives(g_hSDK_Call_OnAdrenalineUsed, "OnAdrenalineUsed");
+
+	int client = GetNativeCell(1);
+	float fTime = GetNativeCell(2);
+	bool heal = GetNativeCell(3);
+
+	// Heal
+	if( heal )
+	{
+		float fHealth = GetTempHealth(client);
+		fHealth += g_hPillsHealth.FloatValue;
+		if( fHealth > 100.0 ) fHealth = 100.0;
+
+		SetTempHealth(client, fHealth);
+
+		// Event
+		Event hEvent = CreateEvent("adrenaline_used");
+		if( hEvent != null )
+		{
+			hEvent.SetInt("userid", GetClientUserId(client));
+			hEvent.Fire();
+		}
+	}
+
+	//PrintToServer("#### CALL g_hSDK_Call_OnAdrenalineUsed");
+	SDKCall(g_hSDK_Call_OnAdrenalineUsed, client, fTime);
+}
+
 public int Native_GetCurrentFinaleStage(Handle plugin, int numParams)
 {
 	ValidateAddress(ScriptedEventManagerPtr, "ScriptedEventManagerPtr");
@@ -4042,6 +4159,20 @@ public any Native_GetFurthestSurvivorFlow(Handle plugin, int numParams)
 
 	//PrintToServer("#### CALL g_hSDK_Call_GetFurthestSurvivorFlow");
 	return SDKCall(g_hSDK_Call_GetFurthestSurvivorFlow, g_pDirector);
+}
+
+public int Native_NavAreaTravelDistance(Handle plugin, int numParams)
+{
+	ValidateNatives(g_hSDK_Call_NavAreaTravelDistance, "NavAreaTravelDistance");
+
+	float vPos[3], vEnd[3];
+
+	GetNativeArray(1, vPos, sizeof(vPos));
+	GetNativeArray(2, vEnd, sizeof(vEnd));
+	int a3 = GetNativeCell(3);
+
+	//PrintToServer("#### CALL g_hSDK_Call_NavAreaTravelDistance");
+	return SDKCall(g_hSDK_Call_NavAreaTravelDistance, vPos, vEnd, a3);
 }
 
 public int Native_GetScriptValueInt(Handle plugin, int numParams)
@@ -5464,6 +5595,7 @@ public int Direct_GetScriptedEventManager(Handle plugin, int numParams)
 public any Direct_GetTerrorNavArea(Handle plugin, int numParams)
 {
 	ValidateAddress(g_pNavMesh, "g_pNavMesh");
+	ValidateNatives(g_hSDK_Call_GetNavArea, "g_hSDK_Call_GetNavArea");
 
 	float vPos[3];
 	GetNativeArray(1, vPos, 3);
@@ -5651,7 +5783,7 @@ public int Direct_ITimer_SetTimestamp(Handle plugin, int numParams)
 }
 
 // ==================================================
-// STOKS: l4d2d_timers.inc
+// STOCKS: l4d2d_timers.inc
 // ==================================================
 #define CTIMER_DURATION_OFFSET	view_as<Address>(4)
 #define CTIMER_TIMESTAMP_OFFSET view_as<Address>(8)
@@ -6379,6 +6511,18 @@ public MRESReturn SpawnMob(Handle hReturn, Handle hParams)
 public MRESReturn EnterGhostStatePre(int pThis, Handle hReturn, Handle hParams)
 {
 	//PrintToServer("##### DTR EnterGhostStatePre");
+	Action aResult = Plugin_Continue;
+	Call_StartForward(g_hForward_EnterGhostStatePre);
+	Call_PushCell(pThis);
+	Call_Finish(aResult);
+
+	if( aResult == Plugin_Handled )
+	{
+		DHookSetReturn(hReturn, 0);
+		return MRES_Supercede;
+	}
+
+	return MRES_Ignored;
 }
 
 public MRESReturn EnterGhostState(int pThis, Handle hReturn, Handle hParams)
@@ -7164,6 +7308,63 @@ public MRESReturn OnChooseVictim(int client, Handle hReturn)
 	return MRES_Ignored;
 }
 
+public MRESReturn OnVomitedUpon(int client, Handle hReturn, Handle hParams)
+{
+	// PrintToServer("##### DTR OnVomitedUpon");
+
+	int a1 = DHookGetParam(hParams, 1);
+	int a2 = DHookGetParam(hParams, 2);
+
+	Action aResult = Plugin_Continue;
+	Call_StartForward(g_hForward_OnVomitedUpon);
+	Call_PushCell(client);
+	Call_PushCellRef(a1);
+	Call_PushCellRef(a2);
+	Call_Finish(aResult);
+
+	if( aResult == Plugin_Handled )
+	{
+		DHookSetReturn(hReturn, 0);
+		return MRES_Supercede;
+	}
+
+	if( aResult == Plugin_Changed )
+	{
+		DHookSetParam(hParams, 1, a1);
+		DHookSetParam(hParams, 2, a2);
+		return MRES_ChangedHandled;
+	}
+
+	return MRES_Ignored;
+}
+
+public MRESReturn OnHitByVomitJar(int client, Handle hReturn, Handle hParams)
+{
+	// PrintToServer("##### DTR OnHitByVomitJar");
+
+	int a1 = DHookGetParam(hParams, 1);
+
+	Action aResult = Plugin_Continue;
+	Call_StartForward(g_hForward_OnHitByVomitJar);
+	Call_PushCell(client);
+	Call_PushCellRef(a1);
+	Call_Finish(aResult);
+
+	if( aResult == Plugin_Handled )
+	{
+		DHookSetReturn(hReturn, 0);
+		return MRES_Supercede;
+	}
+
+	if( aResult == Plugin_Changed )
+	{
+		DHookSetParam(hParams, 1, a1);
+		return MRES_ChangedHandled;
+	}
+
+	return MRES_Ignored;
+}
+
 /*
 // Removed because it spawns specials at 0,0,0 when modifying any value.
 public MRESReturn GetRandomPZSpawnPos(Handle hReturn, Handle hParams)
@@ -7252,6 +7453,248 @@ public MRESReturn OnWaterMove(int pThis, Handle hReturn, Handle hParams)
 
 
 // ====================================================================================================
+//										VSCRIPT WRAPPERS
+// ====================================================================================================
+public int Native_VS_GetMapNumber(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- Director.GetMapNumber(); <RETURN>ret</RETURN>");
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return StringToInt(buffer);
+	else
+		return false;
+}
+
+public int Native_VS_HasEverBeenInjured(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+	int team = GetNativeCell(2);
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- GetPlayerFromUserID(%d).HasEverBeenInjured(%d); <RETURN>ret</RETURN>", client, team);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return view_as<bool>(StringToInt(buffer));
+	else
+		return false;
+}
+
+public any Native_VS_GetAliveDuration(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- GetPlayerFromUserID(%d).GetAliveDuration(); <RETURN>ret</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return StringToFloat(buffer);
+	else
+		return false;
+}
+
+public int Native_VS_IsDead(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- GetPlayerFromUserID(%d).IsDead(); <RETURN>ret</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return view_as<bool>(StringToInt(buffer));
+	else
+		return false;
+}
+
+public int Native_VS_IsDying(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- GetPlayerFromUserID(%d).IsDying(); <RETURN>ret</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return view_as<bool>(StringToInt(buffer));
+	else
+		return false;
+}
+
+public int Native_VS_UseAdrenaline(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+	float fTime = GetNativeCell(2);
+
+	// Code
+	FormatEx(code, sizeof(code), "GetPlayerFromUserID(%d).UseAdrenaline(%f); <RETURN>1</RETURN>", client, fTime);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return true;
+	else
+		return false;
+}
+
+public int Native_VS_ReviveByDefib(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "GetPlayerFromUserID(%d).ReviveByDefib(); <RETURN>1</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return true;
+	else
+		return false;
+}
+
+public int Native_VS_ReviveFromIncap(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "GetPlayerFromUserID(%d).ReviveFromIncap(); <RETURN>1</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return true;
+	else
+		return false;
+}
+
+public int Native_VS_GetSenseFlags(Handle plugin, int numParams)
+{
+	// Vars
+	char code[256];
+	char buffer[8];
+
+	int client = GetNativeCell(1);
+	client = GetClientUserId(client);
+
+	// Code
+	FormatEx(code, sizeof(code), "ret <- GetPlayerFromUserID(%d).GetSenseFlags(); <RETURN>ret</RETURN>", client);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return StringToInt(buffer);
+	else
+		return false;
+}
+
+public int Native_VS_NavAreaBuildPath(Handle plugin, int numParams)
+{
+	// Vars
+	char code[512];
+	char buffer[8];
+	float vPos[3];
+	float vEnd[3];
+
+	// Params
+	GetNativeArray(1, vPos, sizeof(vPos));
+	GetNativeArray(2, vEnd, sizeof(vEnd));
+	float flMaxPathLength = GetNativeCell(3);
+	bool checkLOS = GetNativeCell(4);
+	bool checkGround = GetNativeCell(5);
+	int teamID = GetNativeCell(6);
+	bool ignoreNavBlockers = GetNativeCell(7);
+
+	// Code
+	FormatEx(code, sizeof(code), "\
+	a1 <- NavMesh.GetNearestNavArea(Vector(%f, %f, %f), %f, %s, %s);\
+	a2 <- NavMesh.GetNearestNavArea(Vector(%f, %f, %f), %f, %s, %s);\
+	a3 <- NavMesh.NavAreaBuildPath(a1, a2, Vector(%f, %f, %f), %f, %d, %s);\
+	<RETURN>a3</RETURN>",
+	vPos[0], vPos[1], vPos[2], flMaxPathLength, checkLOS ? "true" : "false", checkGround ? "true" : "false",
+	vEnd[0], vEnd[1], vEnd[2], flMaxPathLength, checkLOS ? "true" : "false", checkGround ? "true" : "false",
+	vEnd[0], vEnd[1], vEnd[2], flMaxPathLength, teamID, ignoreNavBlockers ? "true" : "false"
+	);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return view_as<bool>(StringToInt(buffer));
+	else
+		return false;
+}
+
+public any Native_VS_NavAreaTravelDistance(Handle plugin, int numParams)
+{
+	// Vars
+	char code[512];
+	char buffer[8];
+	float vPos[3];
+	float vEnd[3];
+
+	// Params
+	GetNativeArray(1, vPos, sizeof(vPos));
+	GetNativeArray(2, vEnd, sizeof(vEnd));
+	float flMaxPathLength = GetNativeCell(3);
+	bool checkLOS = GetNativeCell(4);
+	bool checkGround = GetNativeCell(5);
+
+	// Code
+	FormatEx(code, sizeof(code), "\
+	a1 <- NavMesh.GetNearestNavArea(Vector(%f, %f, %f), %f, %s, %s);\
+	a2 <- NavMesh.GetNearestNavArea(Vector(%f, %f, %f), %f, %s, %s);\
+	a3 <- NavMesh.NavAreaTravelDistance(a1, a2, %f);\
+	<RETURN>a3</RETURN>",
+	vPos[0], vPos[1], vPos[2], flMaxPathLength, checkLOS ? "true" : "false", checkGround ? "true" : "false",
+	vEnd[0], vEnd[1], vEnd[2], flMaxPathLength, checkLOS ? "true" : "false", checkGround ? "true" : "false",
+	vEnd[0], vEnd[1], vEnd[2], flMaxPathLength
+	);
+
+	// Exec
+	if( GetVScriptOutput(code, buffer, sizeof(buffer)) )
+		return StringToFloat(buffer);
+	else
+		return -1.0;
+}
+
+
+// ====================================================================================================
 //										HELPERS
 // ====================================================================================================
 bool GetVScriptOutput(char[] code, char[] ret, int maxlength)
@@ -7268,29 +7711,34 @@ bool GetVScriptOutput(char[] code, char[] ret, int maxlength)
 			return false;
 		}
 
+		DispatchSpawn(logic);
+
 		logic = EntIndexToEntRef(logic);
 	}
 
-	DispatchSpawn(logic);
-
 	// Return values between <RETURN> </RETURN>
-	static char buffer[1024];
+	int length = strlen(code) + 256;
+	char[] buffer = new char[length];
+
 	int pos = StrContains(code, "<RETURN>");
 	if( pos != -1 )
 	{
-		strcopy(buffer, sizeof(buffer), code);
-		ReplaceString(buffer, sizeof(buffer), "</RETURN>", ");");
-		ReplaceString(buffer, sizeof(buffer), "<RETURN>", "Convars.SetValue(\"l4d2_vscript_return\", ");
+		strcopy(buffer, length, code);
+		ReplaceString(buffer, length, "</RETURN>", ");");
+		ReplaceString(buffer, length, "<RETURN>", "Convars.SetValue(\"l4d2_vscript_return\", ");
 	}
 	else
 	{
-		Format(buffer, sizeof(buffer), "Convars.SetValue(\"l4d2_vscript_return\", \"\" + %s + \"\");", code);
+		Format(buffer, length, "Convars.SetValue(\"l4d2_vscript_return\", \"\" + %s + \"\");", code);
 	}
 
 	// Run code
 	SetVariantString(buffer);
 	AcceptEntityInput(logic, "RunScriptCode");
+
+	#if KILL_VSCRIPT
 	AcceptEntityInput(logic, "Kill");
+	#endif
 
 	// Retrieve value and return to buffer
 	g_hCvarVScriptBuffer.GetString(ret, maxlength);
@@ -7340,4 +7788,24 @@ stock void ReadMemoryString(int addr, char[] temp, int size)
 			return;
 		}
 	}
+}
+
+
+
+// ====================================================================================================
+//                    STOCKS - HEALTH
+// ====================================================================================================
+float GetTempHealth(int client)
+{
+    float fGameTime = GetGameTime();
+    float fHealthTime = GetEntPropFloat(client, Prop_Send, "m_healthBufferTime");
+    float fHealth = GetEntPropFloat(client, Prop_Send, "m_healthBuffer");
+    fHealth -= (fGameTime - fHealthTime) * g_hDecayDecay.FloatValue;
+    return fHealth < 0.0 ? 0.0 : fHealth;
+}
+
+void SetTempHealth(int client, float fHealth)
+{
+    SetEntPropFloat(client, Prop_Send, "m_healthBuffer", fHealth < 0.0 ? 0.0 : fHealth );
+    SetEntPropFloat(client, Prop_Send, "m_healthBufferTime", GetGameTime());
 }

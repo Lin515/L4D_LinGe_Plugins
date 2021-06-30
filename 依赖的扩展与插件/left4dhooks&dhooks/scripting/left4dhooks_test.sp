@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.36"
+#define PLUGIN_VERSION		"1.42"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,35 @@
 
 ========================================================================================
 	Change Log:
+
+1.42 (23-Jun-2021)
+	- L4D & L4D2 update:
+	- Added forward "L4D_OnVomitedUpon" when client is covered in vomit.
+	- Added forward "L4D_OnEnterGhostStatePre" with the ability to block entering ghost state.
+	- Changed 2 signatures to be compatible with detouring: "CTerrorPlayer::OnStaggered" and "CTerrorPlayer::OnVomitedUpon".
+
+	- L4D2 update only:
+
+	- Added forward "L4D2_OnHitByVomitJar" when a Bilejar explodes on clients.
+	- Added native "L4D2_NavAreaTravelDistance" to return the nav flow distance between two areas.
+	- Added native "L4D2_UseAdrenaline" to give a player the Adrenaline effect and health benefits.
+
+	- Added various natives as wrappers executing VScript code:
+		- These are slower than native SDKCalls, please report popular ones to convert to fast SDKCalls.
+		"L4D2_VScriptWrapper_GetMapNumber"
+		"L4D2_VScriptWrapper_HasEverBeenInjured"
+		"L4D2_VScriptWrapper_GetAliveDuration"
+		"L4D2_VScriptWrapper_IsDead"
+		"L4D2_VScriptWrapper_IsDying"
+		"L4D2_VScriptWrapper_UseAdrenaline"
+		"L4D2_VScriptWrapper_ReviveByDefib"
+		"L4D2_VScriptWrapper_ReviveFromIncap"
+		"L4D2_VScriptWrapper_GetSenseFlags"
+		"L4D2_VScriptWrapper_NavAreaBuildPath"
+		"L4D2_VScriptWrapper_NavAreaTravelDistance" // Added as a demonstration and test, SDKCall is available, use "L4D2_NavAreaTravelDistance" instead.
+
+	- Updated: Plugin, GameData and Include file. Both L4D1 and L4D2.
+	- Thanks to "Eärendil" for showing me how to call some VScript functions.
 
 1.36 (20-Apr-2021)
 	- Restricted native "L4D2_IsReachable" client index to Survivor bots only. Attempts to find a valid bot otherwise it will throw an error. Thanks to "Forgetest" for reporting.
@@ -141,9 +170,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 	// (+2 for "L4D2_OnEndVersusModeRound_Post" and "L4D2_OnSelectTankAttackPre")
 	if( g_bLeft4Dead2 )
-		g_iForwardsMax = 43;
+		g_iForwardsMax = 46;
 	else
-		g_iForwardsMax = 33;
+		g_iForwardsMax = 35;
 
 	return APLRes_Success;
 }
@@ -364,6 +393,65 @@ public Action sm_l4dd(int client, int args)
 	// =========================
 	// NATIVES - Mine
 	// =========================
+
+	/*
+	// VSCRIPT WRAPPER TESTS
+	if( g_bLeft4Dead2 )
+	{
+		float vPos[3];
+		float vEnd[3];
+
+		// GetClientAbsOrigin(client, vPos);
+		// PrintToChatAll("Nav area %d (%f, %f, %f)", L4D2Direct_GetTerrorNavArea(vPos),vPos[0], vPos[1], vPos[2]);
+
+		// Tested on c1m2_streets
+		// vPos = view_as<float>({ 2655.420410, 4722.138183, 448.031250 });	// Saferoom start - out of bounds
+		vPos = view_as<float>({ 2449.840576, 5027.909179, 448.031250 });	// Saferoom start
+		vEnd = view_as<float>({ -7481.826660, -4701.759277, 384.281250 });	// Saferoom end
+
+		PrintToServer("L4D2_NavAreaTravelDistance %f / %f", L4D2_NavAreaTravelDistance(vPos, vEnd, false), GetVectorDistance(vPos, vEnd));
+
+		PrintToServer("L4D2_VScriptWrapper_NavAreaBuildPath %b", L4D2_VScriptWrapper_NavAreaBuildPath(vPos, vEnd, 99999.999, true, true, 2, true));
+
+		PrintToServer("L4D2_VScriptWrapper_NavAreaTravelDistance %f", L4D2_VScriptWrapper_NavAreaTravelDistance(vPos, vEnd, 99999.999, true, true));
+
+		PrintToServer("L4D2_VScriptWrapper_GetMapNumber %d", L4D2_VScriptWrapper_GetMapNumber());
+
+		if( client )
+		{
+			PrintToServer("L4D2_VScriptWrapper_HasEverBeenInjured %d", L4D2_VScriptWrapper_HasEverBeenInjured(client, 3));
+			PrintToServer("L4D2_VScriptWrapper_GetAliveDuration %f", L4D2_VScriptWrapper_GetAliveDuration(client));
+			PrintToServer("L4D2_VScriptWrapper_IsDead %d", L4D2_VScriptWrapper_IsDead(client));
+			PrintToServer("L4D2_VScriptWrapper_IsDying %d", L4D2_VScriptWrapper_IsDying(client));
+			PrintToServer("L4D2_VScriptWrapper_UseAdrenaline %d", L4D2_VScriptWrapper_UseAdrenaline(client, 20.0));
+			PrintToServer("L4D2_VScriptWrapper_ReviveByDefib %d", L4D2_VScriptWrapper_ReviveByDefib(client));
+			PrintToServer("L4D2_VScriptWrapper_ReviveFromIncap %d", L4D2_VScriptWrapper_ReviveFromIncap(client));
+		}
+
+		int bot;
+
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) && IsFakeClient(i) && GetClientTeam(i) == 2 )
+			{
+				bot = i;
+				break;
+			}
+		}
+
+		if( bot )
+		{
+			PrintToServer("L4D2_VScriptWrapper_GetSenseFlags %d (%d %N)", L4D2_VScriptWrapper_GetSenseFlags(bot), bot, bot);
+		} else {
+			PrintToServer("L4D2_VScriptWrapper_GetSenseFlags: ERROR: No bot to test");
+		}
+	}
+	// */
+
+
+
+
+
 	/*
 	if( g_bLeft4Dead2 )
 	{
@@ -494,6 +582,12 @@ public Action sm_l4dd(int client, int args)
 	PrintToServer("L4D_IsInLastCheckpoint %d",							L4D_IsInLastCheckpoint(client)); // WORKING
 
 	PrintToServer("L4D_HasPlayerControlledZombies %d",					L4D_HasPlayerControlledZombies()); // WORKING
+
+
+	// WORKING
+	// L4D2_UseAdrenaline(client, 15.0, false);
+	L4D2_UseAdrenaline(client);
+	PrintToServer("L4D2_UseAdrenaline %N", client);
 
 
 
@@ -1198,6 +1292,21 @@ public Action L4D_OnSpawnMob(int &amount)
 	// return Plugin_Handled;
 }
 
+public Action L4D_OnEnterGhostStatePre(int client)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnEnterGhostStatePre\" %d", client);
+	}
+
+	// WORKS
+	// return Plugin_Handled;
+}
+
 public void L4D_OnEnterGhostState(int client)
 {
 	static int called;
@@ -1608,6 +1717,41 @@ public Action L4D2_OnFindScavengeItem(int client, int &item)
 		// item = 440;
 		// return Plugin_Changed;
 	// }
+
+	// WORKS
+	// return Plugin_Handled;
+}
+
+public Action L4D_OnVomitedUpon(int victim, int &attacker, bool &boomerExplosion)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnVomitedUpon\" %d > %d (%d)", victim, attacker, boomerExplosion);
+	}
+
+	// attacker = victim;
+	// return Plugin_Changed;
+
+	// return Plugin_Handled;
+}
+
+public Action L4D2_OnHitByVomitJar(int victim, int &attacker)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D2_OnHitByVomitJar\" %d > %d)", victim, attacker);
+	}
+
+	// attacker = victim;
+	// return Plugin_Changed;
 
 	// WORKS
 	// return Plugin_Handled;
