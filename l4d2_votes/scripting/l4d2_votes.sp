@@ -110,7 +110,7 @@ public void OnConfigsExecuted()
 public Action Event_player_death(Event event, const char[] name, bool dontBroadcast)
 {
 	// 特感击杀回血
-	if (cv_returnBlood.BoolValue)
+	if (1 == cv_returnBlood.IntValue)
 	{
 		int victim = GetClientOfUserId(event.GetInt("userid"));
 		int attacker = GetClientOfUserId(event.GetInt("attacker"));
@@ -223,7 +223,7 @@ public Action Cmd_votes(int client, int args)
 
 	if (0 == cv_restartChapter.IntValue)
 		menu.AddItem("Vote_Restart", "重启当前章节");
-	
+
 	// 额外添加项
 	int len = g_extraItem.Length;
 	ExtraItem item;
