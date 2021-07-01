@@ -10,11 +10,13 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.0",
+	version = "1.1",
 	url = "https://github.com/LinGe515"
 };
 
 ConVar cv_svmaxplayers; // sv_maxplayers
+ConVar cv_smVoteDelay; // sm_vote_delay
+ConVar cv_voteDelay;
 ConVar cv_voteTime; // 投票应在多少秒内完成
 ConVar cv_ammoMode; // 弹药模式
 ConVar cv_autoLaser; // 自动红外
@@ -46,7 +48,7 @@ ConVar cv_thFactor[4];
 // 武器备弹量设置
 ConVar cv_ammoInfinite; // 无限弹药无需换弹
 ConVar cv_ammoMax[7]; // 最大弹药量
-char cvar_ammoMax[7][50] = { // 控制台变量名
+char cvar_ammoMax[][] = { // 控制台变量名
 	"ammo_shotgun_max", // 单喷
 	"ammo_autoshotgun_max", // 连喷
 	"ammo_assaultrifle_max", // 步枪
@@ -59,6 +61,7 @@ char cvar_ammoMax[7][50] = { // 控制台变量名
 public void OnPluginStart()
 {
 	cv_svmaxplayers	= FindConVar("sv_maxplayers");
+	cv_smVoteDelay	= FindConVar("sm_vote_delay");
 	cv_ammoInfinite = FindConVar("sv_infinite_ammo"); // 该变量为1时 主副武器开枪均不消耗子弹
 	for (int i=0; i<7; i++)
 	{
@@ -69,7 +72,8 @@ public void OnPluginStart()
 	cv_thFactor[1]	= FindConVar("survivor_friendly_fire_factor_normal");
 	cv_thFactor[2]	= FindConVar("survivor_friendly_fire_factor_hard");
 	cv_thFactor[3]	= FindConVar("survivor_friendly_fire_factor_expert");
-	cv_voteTime		= CreateConVar("l4d2_votes_time", "20", "投票应在多少秒内完成？", _, true, 10.0, true, 60.0);
+	cv_voteTime		= CreateConVar("l4d2_votes_time", "20", "投票应在多少秒内完成？", FCVAR_SERVER_CAN_EXECUTE, true, 10.0, true, 60.0);
+	cv_voteDelay	= CreateConVar("l4d2_votes_delay", "10", "玩家需要等待多久才能再次发起投票？将一直锁定sm_vote_delay为本变量的值。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_ammoMode		= CreateConVar("l4d2_votes_ammomode", "1", "多倍弹药模式 -1:完全禁用 0:禁用多倍但允许投票补满所有人弹药 1:一倍且允许开启多倍弹药 2:双倍 3:三倍 4:无限(需换弹) 5:无限(无需换弹)",  FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 5.0);
 	cv_autoLaser	= CreateConVar("l4d2_votes_autolaser", "0", "自动获得红外 -1:完全禁用 0:关闭 1:开启", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 1.0);
 	cv_teamHurt		= CreateConVar("l4d2_votes_teamhurt", "0", "是否允许投票改变友伤系数 -1:不允许 0:允许", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 0.0);
@@ -83,6 +87,8 @@ public void OnPluginStart()
 	cv_healthLimit	= CreateConVar("l4d2_votes_returnblood_limit", "100", "最高回血上限。（仅影响回血时的上限，不影响其它情况下的血量上限）", FCVAR_SERVER_CAN_EXECUTE, true, 40.0, true, 500.0);
 	cv_ammoMode.AddChangeHook(AmmoModeChanged);
 	cv_autoLaser.AddChangeHook(AutoLaserChanged);
+	cv_voteDelay.AddChangeHook(VoteDelayChanged);
+	cv_smVoteDelay.AddChangeHook(VoteDelayChanged);
 	HookEvent("player_death", Event_player_death, EventHookMode_Post);
 	HookEvent("weapon_reload", Event_weapon_reload, EventHookMode_Post); // 玩家换弹
 	AddNormalSoundHook(OnNormalSound); // 挂钩声音
@@ -97,7 +103,10 @@ public void OnPluginStart()
 	for (int i=1; i<=MaxClients; i++)
 	{
 		if (IsClientInGame(i) && GetClientTeam(i) == 2)
+		{
 			SDKHook(i, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
+			SDKHook(i, SDKHook_WeaponDropPost, OnWeaponDropPost);
+		}
 	}
 }
 
@@ -105,6 +114,12 @@ public void OnConfigsExecuted()
 {
 	if (cv_players.IntValue > 0 && null != cv_svmaxplayers)
 		cv_svmaxplayers.IntValue = cv_players.IntValue;
+	cv_smVoteDelay.IntValue = cv_voteDelay.IntValue;
+}
+
+public void VoteDelayChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	cv_smVoteDelay.IntValue = cv_voteDelay.IntValue;
 }
 
 public Action Event_player_death(Event event, const char[] name, bool dontBroadcast)
@@ -530,16 +545,14 @@ void SetAmmoMode()
 	}
 	cv_ammoInfinite.IntValue = 0;
 
-	if (2==mode || 3==mode) // 2倍、3倍弹药
+	if (mode>=1 || mode<=3) // 1倍、2倍、3倍弹药
 	{
-		int mult = 1; // 默认弹药量的乘数
 		char buffer[10];
-		mult = mode;
 		// 设置的新弹药量
 		for (int i=0; i<7; i++)
 		{
 			cv_ammoMax[i].GetDefault(buffer, sizeof(buffer));
-			cv_ammoMax[i].IntValue = StringToInt(buffer) * mult;
+			cv_ammoMax[i].IntValue = StringToInt(buffer) * mode;
 		}
 	}
 
@@ -607,12 +620,18 @@ public void AutoLaserChanged(ConVar convar, const char[] oldValue, const char[] 
 public void OnClientPutInServer(int client)
 {
 	if (IsValidClient(client))
+	{
 		SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
+		SDKHook(client, SDKHook_WeaponDropPost, OnWeaponDropPost);
+	}
 }
 public void OnClientDisconnect(int client)
 {
 	if (IsValidClient(client))
+	{
 		SDKUnhook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
+		SDKUnhook(client, SDKHook_WeaponDropPost, OnWeaponDropPost);
+	}
 }
 
 public Action OnWeaponEquipPost(int client, int weapon)
@@ -624,14 +643,21 @@ public Action OnWeaponEquipPost(int client, int weapon)
 	}
 }
 
-bool SetWeaponLaser(int weapon)
+// 武器丢掉时去除红外，如果不去除武器多了满地都是红外
+public Action OnWeaponDropPost(int client, int weapon)
+{
+	if (1 == cv_autoLaser.IntValue)
+		SetWeaponLaser(weapon, true);
+}
+
+void SetWeaponLaser(int weapon, bool remove=false)
 {
 	if (IsValidEntity(weapon) && HasEntProp(weapon, Prop_Send, "m_upgradeBitVec"))
 	{
 		int flags = GetEntProp(weapon, Prop_Send, "m_upgradeBitVec");
-		if (!(flags & UPGRADE_LASER)) // 如果当前没有红外，则使其获得
+		if (!(flags & UPGRADE_LASER) && !remove) // 如果没有红外，且要求获得
 			SetEntProp(weapon, Prop_Send, "m_upgradeBitVec", flags | UPGRADE_LASER);
-		return true;
+		else if ((flags & UPGRADE_LASER) && remove) // 如果有红外，且要求去除
+			SetEntProp(weapon, Prop_Send, "m_upgradeBitVec", flags & (~UPGRADE_LASER));
 	}
-	return false;
 }
