@@ -33,6 +33,19 @@ stock void L4D2_RunScript(const char[] sCode)
 	SetVariantString(sCode);
 	AcceptEntityInput(iScriptLogic, "RunScriptCode");
 }
+stock void _L4D2_RunScript(char[] sCode, any ...)
+{
+	static char sBuffer[8192];
+	VFormat(sBuffer, sizeof(sBuffer), sCode, 2);
+	L4D2_RunScript(sBuffer);
+}
+
+// 将运行结果存入指定ConVar
+// 这种利用控制台变量获取返回值的方法参考自left4dhooks
+stock void Ret_L4D2_RunScript(const char[] code, const char[] convar)
+{
+	_L4D2_RunScript("Convars.SetValue(\"%s\", %s)", convar, code);
+}
 
 // 传送
 stock bool Teleport(int client, int target)
