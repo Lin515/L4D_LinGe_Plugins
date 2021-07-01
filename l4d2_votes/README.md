@@ -2,7 +2,8 @@
 
 发送 !votes 打开投票菜单，所有玩家可用。  
 包含多倍弹药、自动红外、友伤设置、服务器人数设置、特感击杀回血等功能。  
-另外可以添加自定义选项。
+另外可以添加自定义选项。  
+注意：本插件不控制玩家的投票发起间隔限制，如有需要请修改 sm_vote_delay 参数。
 
 **支持游戏：求生之路2**  
 **建议插件平台：SourceMod 1.10.0**  
@@ -18,9 +19,9 @@
 	
 	```
 	// 设置服务器指令
-	l4d2_votes_additem 1 "设置模式为战役" "sm_cvar mp_gamemode coop"
+	l4d2_votes_additem 1 "Coop" "sm_cvar mp_gamemode coop"
 	// 设置客户端指令
-	l4d2_votes_additem 0 "打开换图菜单" "say /mapvote"
+	l4d2_votes_additem 0 "MapVote" "sm_mapvote"
 	```
 	
 - **l4d2_votes_removeitem**  
@@ -28,12 +29,39 @@
 	指令格式：l4d2_votes_removeitem 选项名  
 
 	```
-	l4d2_votes_removeitem "打开换图菜单"
+	l4d2_votes_removeitem "MapVote"
 	```
+
+### 关于添加额外的中文选项名
+
+服务端对中文的支持不是很好，如果要添加额外的中文选项，例如在 cfg 文件中写入：  
+
+```
+l4d2_votes_additem 0 "更换地图" "sm_mapvote"
+```
+
+服务器会无法识别出中文字符而以致指令输入无效。
+
+对此可以使用 VScripts 脚本来代替 cfg 文件完成指令添加，下面是一个简单的例子：
+
+``` squirrel
+// scripts/vscripts/director_base_addon.nut
+switch (Convars.GetStr("hostport"))
+{
+case "20001":
+	SendToServerConsole("l4d2_votes_additem 0 \"更换模式\" \"sm_modevote\"");
+	SendToServerConsole("l4d2_votes_additem 0 \"更换地图\" \"sm_mapvote\"");
+	break;
+default:
+	break;
+}
+```
+
+
 
 ## 功能开关
 
-本插件不自动生成cfg文件，如果需要设置下面的功能开关，请自行在你服务器的server.cfg里添加。  
+本插件不自动生成 cfg 文件，如果需要设置下面的功能开关，请自行在你服务器的 server.cfg 里添加。  
 每个变量后面为其默认值。
 
 - **l4d2_votes_time**  20  
