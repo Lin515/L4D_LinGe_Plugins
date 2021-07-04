@@ -504,20 +504,18 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 		}
 	}
 }
+// 让玩家自动加入生还者
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
 	if (IsClientConnected(client))
 	{
 		// 等待玩家完全进入游戏再使其自动加入
-		if (IsClientInGame(client))
+		if (!g_allHumanInGame || IsClientInGame(client))
 		{
 			JoinSurvivor(client);
 			return Plugin_Stop;
 		}
-		else
-		{
-			return Plugin_Continue;
-		}
+		return Plugin_Continue;
 	}
 	return Plugin_Stop;
 }
@@ -688,19 +686,18 @@ int JoinSurvivor(int client)
 		return 3;
 
 	// 搜索可接管BOT，若没有则添加一个
+	int ret = 0;
 	int bot = FindBotToTakeOver();
 	if (bot > 0)
 	{
 		TakeOverBot(client, bot);
-		return 0;
+		ret = 0;
 	}
 	else
-	{
-		int ret = AddBot();
-		if (0 == ret)
-			CreateTimer(0.5, Delay_JoinSurvivor, client);
-		return ret;
-	}
+		ret = AddBot();
+	if (0 == ret) // 0.5秒后检查其状态
+		CreateTimer(0.5, Delay_JoinSurvivor, client);
+	return ret;
 }
 public Action Delay_JoinSurvivor(Handle timer, any client)
 {
