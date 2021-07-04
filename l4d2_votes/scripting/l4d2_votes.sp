@@ -10,7 +10,7 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.1",
+	version = "1.2",
 	url = "https://github.com/LinGe515"
 };
 
@@ -216,7 +216,8 @@ public Action Cmd_votes(int client, int args)
 	Menu menu = new Menu(VotesMenu_Selected);
 	menu.SetTitle("发起投票");
 
-	if (cv_playersUpper.IntValue > cv_playersLower.IntValue)
+	if (cv_playersUpper.IntValue > cv_playersLower.IntValue
+	&& cv_svmaxplayers != null)
 		menu.AddItem("Menu_MaxPlayers", "服务器人数");
 	if (0 == cv_teamHurt.IntValue)
 		menu.AddItem("Menu_TeamHurt", "友伤设置");
