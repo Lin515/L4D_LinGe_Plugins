@@ -17,7 +17,7 @@ public Plugin myinfo = {
 	author = "LinGe, SilverShot",
 	description = "投票换图",
 	version = "2.1",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 TopMenu g_hCvarMenuMenu;

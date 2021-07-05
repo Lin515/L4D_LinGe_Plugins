@@ -12,7 +12,7 @@ public Plugin myinfo = {
 	author = "LinGe",
 	description = "L4D2多人控制",
 	version = "2.3",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 // SDKCall Function

@@ -5,7 +5,7 @@
 
 *	Name	:	[L4D & L4D2] Vote Mode
 *	Author	:	SilverShot
-*	Modify	:	LinGe - https://github.com/LinGe515
+*	Modify	:	LinGe - https://github.com/Lin515/L4D_LinGe_Plugins
 *	Descrp	:	Allows players to vote change the game mode. Admins can force change the game mode.
 *	Link	:	https://forums.alliedmods.net/showthread.php?t=179279
 *	Plugins	:	https://sourcemod.net/plugins.php?exact=exact&sortby=title&search=1&author=Silvers
@@ -106,7 +106,7 @@ public Plugin myinfo =
 	author = "SilverShot, LinGe",
 	description = "Allows players to vote change the game mode. Admins can force change the game mode.",
 	version = PLUGIN_VERSION,
-	url = "https://github.com/LinGe515/L4D_LinGe_Plugins"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins/L4D_LinGe_Plugins"
 // 原版 url = "https://forums.alliedmods.net/showthread.php?t=179279"
 }
 

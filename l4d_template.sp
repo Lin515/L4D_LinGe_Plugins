@@ -8,7 +8,7 @@ public Plugin myinfo = {
 	author = "LinGe",
 	description = "描述",
 	version = "0.1",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)

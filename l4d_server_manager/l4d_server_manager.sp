@@ -9,7 +9,7 @@ public Plugin myinfo = {
 	author = "LinGe",
 	description = "求生之路 简单管理服务器",
 	version = "0.1",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 ConVar cv_hostingLobby;

@@ -7,7 +7,7 @@ public Plugin myinfo = {
 	author = "LinGe",
 	description = "求生之路 一个简单的自用库",
 	version = "0.1",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)

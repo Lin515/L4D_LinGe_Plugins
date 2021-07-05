@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
 	version = "1.2",
-	url = "https://github.com/LinGe515"
+	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 ConVar cv_svmaxplayers; // sv_maxplayers
