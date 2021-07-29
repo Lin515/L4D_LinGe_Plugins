@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.42"
+#define PLUGIN_VERSION		"1.50"
 
 /*=======================================================================================
 	Plugin Info:
@@ -32,8 +32,32 @@
 ========================================================================================
 	Change Log:
 
+1.50 (22-Jul-2021)
+	- Fixed "Native was not found" errors in L4D1. Thanks to "xerox8521" for reporting.
+	- Test plugin: Fixed "L4D_OnMaterializeFromGhostPre" and "L4D_OnMaterializeFromGhost" throwing "String formatted incorrectly" errors.
+
+1.46 (09-Jul-2021)
+	- L4D2: Added native "L4D2_ExecVScriptCode" to exec VScript code instead of having to create an entity to fire code.
+	- L4D2: Fixed GameData file from the "2.2.2.0" game update.
+
+1.43 (01-Jul-2021)
+	- L4D1 & L4D2 update:
+	- Added forward "L4D_OnMaterializeFromGhostPre" and "L4D_OnMaterializeFromGhost" when a client spawns out of ghost mode. Thanks to "ProjectSky" and "sorallll" and for suggesting.
+
+	- Added native "L4D_RespawnPlayer" to respawn a dead player.
+	- Added native "L4D_SetHumanSpec" to takeover a bot.
+	- Added native "L4D_TakeOverBot" to takeover a bot.
+	- Added native "L4D_CanBecomeGhost" to determine when someone is about to enter ghost mode.
+	- Added native "L4D2_AreWanderersAllowed" to determine if Witches can wander.
+	- Added native "L4D_IsFinaleEscapeInProgress" to determine if Witches can wander around.
+	- Added native "L4D_GetLastKnownArea" to retrieve a clients last known nav area.
+
+	- Added missing "ACT_ITEM2_VM_LOWERED_TO_IDLE" to the "data/left4dhooks.l4d2.cfg" config.
+
+	- Updated: Plugin, Test plugin, Include file, GameData files and "data/left4dhooks.l4d2.cfg" config.
+
 1.42 (23-Jun-2021)
-	- L4D & L4D2 update:
+	- L4D1 & L4D2 update:
 	- Added forward "L4D_OnVomitedUpon" when client is covered in vomit.
 	- Added forward "L4D_OnEnterGhostStatePre" with the ability to block entering ghost state.
 	- Changed 2 signatures to be compatible with detouring: "CTerrorPlayer::OnStaggered" and "CTerrorPlayer::OnVomitedUpon".
@@ -58,7 +82,7 @@
 		"L4D2_VScriptWrapper_NavAreaBuildPath"
 		"L4D2_VScriptWrapper_NavAreaTravelDistance" // Added as a demonstration and test, SDKCall is available, use "L4D2_NavAreaTravelDistance" instead.
 
-	- Updated: Plugin, GameData and Include file. Both L4D1 and L4D2.
+	- Updated: Plugin, Test plugin, GameData and Include file. Both L4D1 and L4D2.
 	- Thanks to "Eärendil" for showing me how to call some VScript functions.
 
 1.36 (20-Apr-2021)
@@ -170,9 +194,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 	// (+2 for "L4D2_OnEndVersusModeRound_Post" and "L4D2_OnSelectTankAttackPre")
 	if( g_bLeft4Dead2 )
-		g_iForwardsMax = 46;
+		g_iForwardsMax = 48;
 	else
-		g_iForwardsMax = 35;
+		g_iForwardsMax = 37;
 
 	return APLRes_Success;
 }
@@ -395,6 +419,36 @@ public Action sm_l4dd(int client, int args)
 	// =========================
 
 	/*
+	// WORKS
+	// When a Survivor is taking over another Survivor, should change team to 0 otherwise the players old character will disappear.
+	ChangeClientTeam(client, 0);
+
+	int bot = GetAnyRandomBot();
+	PrintToServer("L4D_SetHumanSpec %d (%d - %N)",					L4D_SetHumanSpec(bot, client), bot, bot);
+	PrintToServer("L4D_TakeOverBot %d (%d - %N)",					L4D_TakeOverBot(client), bot, bot);
+
+	// WORKS
+	L4D_RespawnPlayer(client);
+	PrintToServer("L4D_RespawnPlayer %N", client);
+
+	// WORKS
+	PrintToServer("L4D_GetLastKnownArea %d",						L4D_GetLastKnownArea(client));
+
+	// WORKS
+	PrintToServer("L4D_CanBecomeGhost %d",							L4D_CanBecomeGhost(client));
+
+	// WORKS
+	PrintToServer("L4D_IsFinaleEscapeInProgress %d",				L4D_IsFinaleEscapeInProgress());
+	PrintToChatAll("L4D_IsFinaleEscapeInProgress %d",				L4D_IsFinaleEscapeInProgress());
+
+	// WORKS?
+	if( g_bLeft4Dead2 )
+		PrintToServer("L4D2_AreWanderersAllowed %d",				L4D2_AreWanderersAllowed());
+	// */
+
+
+
+	/*
 	// VSCRIPT WRAPPER TESTS
 	if( g_bLeft4Dead2 )
 	{
@@ -426,6 +480,13 @@ public Action sm_l4dd(int client, int args)
 			PrintToServer("L4D2_VScriptWrapper_UseAdrenaline %d", L4D2_VScriptWrapper_UseAdrenaline(client, 20.0));
 			PrintToServer("L4D2_VScriptWrapper_ReviveByDefib %d", L4D2_VScriptWrapper_ReviveByDefib(client));
 			PrintToServer("L4D2_VScriptWrapper_ReviveFromIncap %d", L4D2_VScriptWrapper_ReviveFromIncap(client));
+
+			char code[256];
+			FormatEx(code, sizeof(code), "GetPlayerFromUserID(%d).ReviveByDefib();", GetClientUserId(client));
+			L4D2_ExecVScriptCode(code);
+
+			FormatEx(code, sizeof(code), "GetPlayerFromUserID(%d).UseAdrenaline(%f);", GetClientUserId(client), 20.0);
+			L4D2_ExecVScriptCode(code);
 		}
 
 		int bot;
@@ -648,7 +709,7 @@ public Action sm_l4dd(int client, int args)
 	float vPos[3];
 	float vAng[3];
 
-	if( client == 0 ) client = GetRandomClient();
+	if( client == 0 ) client = GetRandomSurvivor();
 	PrintToServer("TESTING NATIVES. Using client: %d (%N)", client, client);
 	GetClientAbsOrigin(client, vPos);
 	GetClientAbsAngles(client, vAng);
@@ -1757,6 +1818,33 @@ public Action L4D2_OnHitByVomitJar(int victim, int &attacker)
 	// return Plugin_Handled;
 }
 
+public Action L4D_OnMaterializeFromGhostPre(int client)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnMaterializeFromGhostPre\" %d (%N)", client, client);
+	}
+
+	// WORKS
+	// return Plugin_Handled;
+}
+
+public Action L4D_OnMaterializeFromGhost(int client)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnMaterializeFromGhost\" %d (%N)", client, client);
+	}
+}
+
 public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 {
 	static int called;
@@ -2002,7 +2090,7 @@ void ForwardCalled(const char[] format, any ...)
 	PrintToServer("----------");
 }
 
-stock int GetRandomClient()
+stock int GetRandomSurvivor()
 {
 	int client;
 	for( int i = 1; i <= MaxClients; i++ )
@@ -2041,6 +2129,45 @@ stock int GetRandomClient()
 	return client;
 }
 
+stock int GetRandomInfected()
+{
+	int client;
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && GetClientTeam(i) == 3 && IsFakeClient(i) == false )
+		{
+			client = i;
+			break;
+		}
+	}
+
+	if( !client )
+	{
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) && GetClientTeam(i) == 3 )
+			{
+				client = i;
+				break;
+			}
+		}
+	}
+
+	if( !client )
+	{
+		for( int i = 1; i <= MaxClients; i++ )
+		{
+			if( IsClientInGame(i) )
+			{
+				client = i;
+				break;
+			}
+		}
+	}
+
+	return client;
+}
+
 stock int GetAnyRandomClient()
 {
 	int client;
@@ -2056,6 +2183,29 @@ stock int GetAnyRandomClient()
 
 	if( aClients.Length > 0 )
 		client = aClients.Get(GetRandomInt(0, aClients.Length - 1));
+
+	delete aClients;
+
+	return client;
+}
+
+stock int GetAnyRandomBot()
+{
+	int client;
+	ArrayList aClients = new ArrayList();
+
+	for( int i = 1; i <= MaxClients; i++ )
+	{
+		if( IsClientInGame(i) && IsFakeClient(i) && GetClientTeam(i) == 2 )
+		{
+			aClients.Push(i);
+		}
+	}
+
+	if( aClients.Length > 0 )
+		client = aClients.Get(GetRandomInt(0, aClients.Length - 1));
+
+	delete aClients;
 
 	return client;
 }

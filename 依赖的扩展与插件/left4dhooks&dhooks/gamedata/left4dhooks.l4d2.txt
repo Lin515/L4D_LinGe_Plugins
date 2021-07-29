@@ -674,6 +674,14 @@
 				}
 			}
 
+			"OnMaterializeFromGhost"
+			{
+				"signature"		"MaterializeFromGhost"
+				"callconv"		"thiscall"
+				"return"		"void"
+				"this"			"entity"
+			}
+
 			"UseHealingItems"
 			{
 				"signature"		"UseHealingItems"
@@ -917,6 +925,32 @@
 					"signature" "VanillaModeOffset"
 				}
 			}
+
+			"ForceNextStage"
+			{
+				"windows"
+				{
+					"signature" "ForceNextStage"
+				}
+				"linux"
+				{
+					"signature" "ForceNextStage"
+				}
+			}
+
+			"ForceNextStageAddress"
+			{
+				"windows"
+				{
+					"signature" "ForceNextStageAddress"
+					"read"		"163"	// Midway through nearer target call
+					// "read"	"1436"	// From function start
+				}
+				"linux"
+				{
+					"signature" "ForceNextStageAddress"
+				}
+			}
 		}
 
 
@@ -1025,7 +1059,7 @@
 			"SpawnTimer"
 			{
 				"windows"	"11308"
-				"linux"		"11288"
+				"linux"		"11256"
 			}
 
 			"m_rescueCheckTimer"
@@ -1525,14 +1559,32 @@
 			}
 
 			/*
+			*  ScriptClassDesc_t * GetScriptDesc<CDirector>(CDirector *)
+			*/
+			"ForceNextStageAddress"
+			{
+				"library"	"server"
+				"linux"		"@_ZN9CDirector14ForceNextStageEv"
+				// Midway through nearer target call
+				"windows"	"\x89\x2A\x2A\xC7\x2A\x2A\x2A\x2A\x2A\x2A\xC7\x2A\x2A\x2A\x2A\x2A\x2A\x89\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x50\xE8\x2A\x2A\x2A\x2A\x33\x2A\x8D"
+				/* 89 ? ? C7 ? ? ? ? ? ? C7 ? ? ? ? ? ? 89 ? ? A1 ? ? ? ? 50 E8 ? ? ? ? 33 ? 8D */
+
+				// FUnction start
+				// "windows"	"\x80\x2A\x2A\x2A\x2A\x2A\x00\x0F\x85\x2A\x2A\x2A\x2A\x53\x56\xB8\x2A\x2A\x2A\x2A\xA3"
+				/* 80 ? ? ? ? ? 00 0F 85 ? ? ? ? 53 56 B8 ? ? ? ? A3 */
+				/* Search "Push the ScriptedMode to next stage" */
+			}
+
+			/*
 			*  CDirector::ForceNextStage(CDirector *this)
+			*  Note: Unused since breaks every update, windows has a new method above to get the address
 			*/
 			"ForceNextStage"
 			{
 				"library"	"server"
 				"linux"		"@_ZN9CDirector14ForceNextStageEv"
-				"windows"	"\x8B\x2A\x88\x05\x00\x00\xE9\x2A\x99\x01\x00"
-				/* 8B ? 88 05 00 00 E9 ? 99 01 00 */ 
+				"windows"	"\x8B\x2A\x88\x05\x00\x00\xE9\x2A\x9A\x01\x00"
+				/* 8B ? 88 05 00 00 E9 ? 9A 01 00 */ 
 				/* Search "ForceNextStage" call below of XRef */
 			}
 
@@ -2188,8 +2240,9 @@
 			{
 				"library"	"server"
 				"linux"		"@_ZN11SurvivorBot15UseHealingItemsEP6ActionIS_E"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x20\x53\x56\x8B\xD9\x57\x8D\x8B"
-				/* 55 8B EC 83 EC 20 53 56 8B D9 57 8D 8B */
+				"windows"	"\x55\x8B\x2A\x83\x2A\x2A\x53\x56\x57\x8B\x2A\x8D\x2A\x2A\x2A\x2A\x2A\x8D\x2A\x2A\x2A\x2A\x2A\xE8"
+				/* 55 8B ? 83 ? ? 53 56 57 8B ? 8D ? ? ? ? ? 8D ? ? ? ? ? E8 */
+				/* Search "Trying to heal a friend" */
 			}
 
 			/*
@@ -2332,6 +2385,69 @@
 				/* 55 8B ? 8B ? 8B ? ? ? ? ? ? ? 85 ? 74 */
 				/* Search: "Director state change SUSTAIN_PEAK" few calls below */
 				/* Found by "SilverShot" */
+			}
+
+			/* CDirector::AreWanderersAllowed(void)
+			* Used to get offset for CDirectorScavengeMode
+			*	*(director + offset) == ptr to CDirectorScavengeMode
+			* has unique string "AlwaysAllowWanderers"
+ 			*/
+			"AreWanderersAllowed"
+			{
+				"library"	"server"
+				"linux"		"@_ZNK9CDirector19AreWanderersAllowedEv"
+				"windows"	"\x55\x8B\xEC\x83\xEC\x2A\x56\x8B\xF1\x8B\x8E\x2A\x2A\x2A\x2A\x8D\x45\xFF"
+				/* 55 8B EC 83 EC ? 56 8B F1 8B 8E ? ? ? ? 8D 45 FF */
+			}
+
+			/*
+			 * CDirector::IsFinaleEscapeInProgress(void)
+			 * unique string "#L4D_idle_spectator" in CTerrorPlayer::PreThink()
+			 * CDirector::IsFinaleEscapeInProgress is a couple calls before the string, and a couple calls after CountdownTimer::Now
+			 */
+			"IsFinaleEscapeInProgress"
+			{
+				"library" 	"server"
+				"linux" 	"@_ZNK9CDirector24IsFinaleEscapeInProgressEv"
+				"windows" 	"\x8B\x81\x2A\x2A\x2A\x2A\x83\x38\x2A\x75\x03\x32\xC0\xC3\x33\xC0\x83\xB9\x2A\x2A\x2A\x2A\x02\x0F\x94\xC0\xC3"
+				/* 8B 81 ? ? ? ? 83 38 ? 75 03 32 C0 C3 33 C0 83 B9 ? ? ? ? 02 0F 94 C0 C3 */
+			}
+
+			/*
+			 * CTerrorPlayer::CanBecomeGhost(bool areSpawnsDisabled)
+			 * unique string "ghost_spawn_time"
+			 */
+			"CanBecomeGhost"
+			{
+				"library"	"server"
+				"linux"		"@_ZN13CTerrorPlayer14CanBecomeGhostEb"
+				"windows"	"\x53\x8B\xDC\x83\xEC\x08\x83\xE4\xF0\x83\xC4\x04\x55\x8B\x6B\x04\x89\x6C\x24\x04\x8B\xEC\x83\xEC\x78\x56\x57\x8B\xF1"
+				/* 53 8B DC 83 EC ? 83 E4 F0 83 C4 ? 55 8B 6B 04 89 6C 24 ? 8B EC 83 EC 78 56 57 8B F1 */
+			}
+
+			/*
+			 * CTerrorPlayer::TakeOverBot
+			 * unique string "[TAKEOVER]: %s (%d) possessed %s"
+			 */
+			"TakeOverBot"
+			{
+				"library"	"server"
+				"linux"		"@_ZN13CTerrorPlayer11TakeOverBotEb"
+				"windows"	"\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x8D\x85"
+				/* 55 8B EC 81 EC ? ? ? ? A1 ? ? ? ? 33 C5 89 45 FC 53 56 8D 85 */
+			}
+
+			/*
+			 * SurvivorBot::SetHumanSpectator(CTerrorPlayer*)
+			 * Very similar to BossZombiePlayerBot::SetHumanSpectator()
+			 * SurvivorBot version has 5 xref (one of them is CTerrorPlayer::TakeOverBot), BossZombie has just 1 (CTerrorPlayer::TakeOverBot)
+			 */
+			"SetHumanSpec"
+			{
+				"library"	"server"
+				"linux"		"@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer"
+				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x83\xBE\x2A\x2A\x2A\x2A\x00\x7E\x07\x32\xC0\x5E\x5D\xC2\x04\x00\x8B\x0D"
+				/* ? ? ? ? ? ? 83 BE ? ? ? ? 00 7E 07 32 C0 5E 5D C2 04 00 8B 0D */
 			}
 
 
@@ -2513,8 +2629,8 @@
 			{
 				"library"	"server"
 				"linux"		"@_ZN13CTerrorPlayer20MaterializeFromGhostEv"
-				"windows"	"\x56\x8B\xF1\x8B\x06\x8B\x90\x2A\x2A\x2A\x2A\xFF\xD2\x50\xE8\x2A\x2A\x2A\x2A\x83\xC4"
-				/* 56 8B F1 8B 06 8B 90 ? ? ? ? FF D2 50 E8 ? ? ? ? 83 C4 */
+				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x50\xE8\x2A\x2A\x2A\x2A\x83\x2A\x2A\x50\x8B\x2A\x8B\x2A\x2A\x2A\x2A\x2A\x8B\x2A\x2A\x2A\x50\x68\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x68"
+				/* ? ? ? ? ? ? ? ? ? ? ? ? ? 50 E8 ? ? ? ? 83 ? ? 50 8B ? 8B ? ? ? ? ? 8B ? ? ? 50 68 ? ? ? ? E8 ? ? ? ? 68 */
 				/* Search "%s materialized from spawn mode as a %s" */
 			}
 
@@ -2959,6 +3075,27 @@
 
 
 			// ====================================================================================================
+			// LOBBY RESERVATION
+			// ====================================================================================================
+
+			/*
+			 * CBaseServer::SetReservationCookie(uint64_t, char*, va_list)
+			 * - clear the reservation by setting a cookie of 0
+			 */
+			"SetReservationCookie"
+			{
+				"library"	"engine"
+				"linux"		"@_ZN11CBaseServer20SetReservationCookieEyPKcz"
+				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\x2A\x89\x2A\x2A\x53\x8B\x2A\x2A\x56\x8B\x2A\x2A\x57\x8B\x2A\x2A\x3B"
+				/* ? ? ? ? ? ? ? ? ? A1 ? ? ? ? 33 ? 89 ? ? 53 8B ? ? 56 8B ? ? 57 8B ? ? 3B */
+				// Wildcarded so compatible with l4dtoolz.
+				// "windows"	"\x55\x8B\x2A\x81\x2A\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\x2A\x89\x2A\x2A\x53\x8B\x2A\x2A\x56\x8B\x2A\x2A\x57\x8B\x2A\x2A\x3B"
+				/* 55 8B ? 81 ? ? ? ? ? A1 ? ? ? ? 33 ? 89 ? ? 53 8B ? ? 56 8B ? ? 57 8B ? ? 3B */
+			}
+
+
+
+			// ====================================================================================================
 			// PLAYER SLOTS PATCHING - UNUSED
 			// ====================================================================================================
 			/*
@@ -3105,17 +3242,15 @@
 				/* 55 8B EC 56 8B F1 F3 0F 10 86 ? ? ? ? 0F 2E 45 08 9F 57 */
 			}
 
-			/* CDirector::AreWanderersAllowed(void)
-			* Used to get offset for CDirectorScavengeMode
-			*	*(director + offset) == ptr to CDirectorScavengeMode
-			* has unique string "AlwaysAllowWanderers"
- 			*/
-			"AreWanderersAllowed"
+			/*
+			 * CDirector::IsFinale(void)const
+			 */
+			"IsFinale"
 			{
 				"library"	"server"
-				"linux"		"@_ZNK9CDirector19AreWanderersAllowedEv"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x2A\x56\x8B\xF1\x8B\x8E\x2A\x2A\x2A\x2A\x8D\x45\xFF"
-				/* 55 8B EC 83 EC ? 56 8B F1 8B 8E ? ? ? ? 8D 45 FF */
+				"linux"		"@_ZNK9CDirector8IsFinaleEv"
+				"windows"	"\x8B\x81\x2A\x2A\x2A\x2A\x33\xC9\x83\x38\x2A\x0F\x95\xC0\xC3"
+				/* 8B 81 ? ? ? ? 33 C9 83 38 ? 0F 95 C0 C3 */
 			}
 
 			/*
@@ -3132,19 +3267,6 @@
 				/* 8B 0D ? ? ? ? 85 C9 74 ? A1 ? ? ? ? D9 ? ? 51 D9 ? ? E8 ? ? ? ? 8B */
 			}
 
-			/*
-			 * CDirector::IsFinaleEscapeInProgress(void)
-			 * unique string "#L4D_idle_spectator" in CTerrorPlayer::PreThink()
-			 * CDirector::IsFinaleEscapeInProgress is a couple calls before the string, and a couple calls after CountdownTimer::Now
-			 */
-			"IsFinaleEscapeInProgress"
-			{
-				"library" 	"server"
-				"linux" 	"@_ZNK9CDirector24IsFinaleEscapeInProgressEv"
-				"windows" 	"\x8B\x81\x2A\x2A\x2A\x2A\x83\x38\x2A\x75\x03\x32\xC0\xC3\x33\xC0\x83\xB9\x2A\x2A\x2A\x2A\x02\x0F\x94\xC0\xC3"
-				/* 8B 81 ? ? ? ? 83 38 ? 75 03 32 C0 C3 33 C0 83 B9 ? ? ? ? 02 0F 94 C0 C3 */
-			}
-
 			/* CTerrorPlayer::RoundRespawn */
 			"RoundRespawn"
 			{
@@ -3152,29 +3274,6 @@
 				"linux"		"@_ZN13CTerrorPlayer12RoundRespawnEv"
 				"windows"	"\x56\x8B\xF1\xE8\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x75"
 				/* 56 8B F1 E8 ? ? ? ? E8 ? ? ? ? 84 C0 75	*/
-			}
-
-			/*
-			 * CTerrorPlayer::CanBecomeGhost(bool areSpawnsDisabled)
-			 * unique string "ghost_spawn_time"
-			 */
-			"CanBecomeGhost"
-			{
-				"library"	"server"
-				"linux"		"@_ZN13CTerrorPlayer14CanBecomeGhostEb"
-				"windows"	"\x53\x8B\xDC\x83\xEC\x08\x83\xE4\xF0\x83\xC4\x04\x55\x8B\x6B\x04\x89\x6C\x24\x04\x8B\xEC\x83\xEC\x78\x56\x57\x8B\xF1"
-				/* 53 8B DC 83 EC ? 83 E4 F0 83 C4 ? 55 8B 6B 04 89 6C 24 ? 8B EC 83 EC 78 56 57 8B F1 */
-			}
-
-			/*
-			 * CDirector::IsFinale(void)const
-			 */
-			"IsFinale"
-			{
-				"library"	"server"
-				"linux"		"@_ZNK9CDirector8IsFinaleEv"
-				"windows"	"\x8B\x81\x2A\x2A\x2A\x2A\x33\xC9\x83\x38\x2A\x0F\x95\xC0\xC3"
-				/* 8B 81 ? ? ? ? 33 C9 83 38 ? 0F 95 C0 C3 */
 			}
 
 			/*
@@ -3238,46 +3337,6 @@
 				"linux"		"@_ZN14InfectedShoved8OnShovedEP8InfectedP11CBaseEntity"
 				"windows"	""
 				/* */
-			}
-
-			/*
-			 * CBaseServer::SetReservationCookie(uint64_t, char*, va_list)
-			 * - clear the reservation by setting a cookie of 0
-			 */
-			"SetReservationCookie"
-			{
-				"library"	"engine"
-				"linux"		"@_ZN11CBaseServer20SetReservationCookieEyPKcz"
-				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\x2A\x89\x2A\x2A\x53\x8B\x2A\x2A\x56\x8B\x2A\x2A\x57\x8B\x2A\x2A\x3B"
-				/* ? ? ? ? ? ? ? ? ? A1 ? ? ? ? 33 ? 89 ? ? 53 8B ? ? 56 8B ? ? 57 8B ? ? 3B */
-				// Wildcarded so compatible with l4dtoolz.
-				// "windows"	"\x55\x8B\x2A\x81\x2A\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\x2A\x89\x2A\x2A\x53\x8B\x2A\x2A\x56\x8B\x2A\x2A\x57\x8B\x2A\x2A\x3B"
-				/* 55 8B ? 81 ? ? ? ? ? A1 ? ? ? ? 33 ? 89 ? ? 53 8B ? ? 56 8B ? ? 57 8B ? ? 3B */
-			}
-
-			/*
-			 * CTerrorPlayer::TakeOverBot
-			 * unique string "[TAKEOVER]: %s (%d) possessed %s"
-			 */
-			"TakeOverBot"
-			{
-				"library"	"server"
-				"linux"		"@_ZN13CTerrorPlayer11TakeOverBotEb"
-				"windows"	"\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x8D\x85"
-				/* 55 8B EC 81 EC ? ? ? ? A1 ? ? ? ? 33 C5 89 45 FC 53 56 8D 85 */
-			}
-
-			/*
-			 * SurvivorBot::SetHumanSpectator(CTerrorPlayer*)
-			 * Very similar to BossZombiePlayerBot::SetHumanSpectator()
-			 * SurvivorBot version has 5 xref (one of them is CTerrorPlayer::TakeOverBot), BossZombie has just 1 (CTerrorPlayer::TakeOverBot)
-			 */
-			"SetHumanSpec"
-			{
-				"library"	"server"
-				"linux"		"@_ZN11SurvivorBot17SetHumanSpectatorEP13CTerrorPlayer"
-				"windows"	"\x55\x8B\xEC\x56\x8B\xF1\x83\xBE\x2A\x2A\x2A\x2A\x00\x7E\x07\x32\xC0\x5E\x5D\xC2\x04\x00\x8B\x0D"
-				/* 55 8B EC 56 8B F1 83 BE ? ? ? ? 00 7E 07 32 C0 5E 5D C2 04 00 8B 0D */
 			}
 
 			/*
