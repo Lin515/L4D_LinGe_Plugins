@@ -10,7 +10,7 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.3",
+	version = "1.4",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -19,17 +19,23 @@ ConVar cv_smVoteDelay; // sm_vote_delay
 ConVar cv_voteDelay;
 ConVar cv_voteTime; // 投票应在多少秒内完成
 ConVar cv_ammoMode; // 弹药模式
+int g_ammoMode;
 ConVar cv_autoLaser; // 自动红外
+int g_autoLaser;
 ConVar cv_teamHurt; // 是否允许投票改变友伤系数
 ConVar cv_restartChapter; // 是否允许投票重启当前章节
 ConVar cv_players; // 服务器默认人数
+int g_players;
 ConVar cv_playersLower; // 投票改变服务器人数下限
 ConVar cv_playersUpper; // 投票改变服务器人数上限
 ConVar cv_returnBlood; // 击杀回血
+int g_returnBlood;
 ConVar cv_specialReturn; // 特感击杀回血量
 ConVar cv_witchReturn; // witch击杀回血量
 ConVar cv_healthLimit; // 回血上限
+ConVar cv_restore;
 int g_zombieClassOffset; // 感染者类型的网络属性偏移量
+bool g_hasMapTransitioned = false; // 是否发生地图过渡
 
 // votes
 enum struct VoteAction {
@@ -85,12 +91,15 @@ public void OnPluginStart()
 	cv_specialReturn = CreateConVar("l4d2_votes_returnblood_special", "2", "击杀一只特感回多少血", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 100.0);
 	cv_witchReturn	= CreateConVar("l4d2_votes_returnblood_witch", "10", "击杀一只Witch回多少血", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 100.0);
 	cv_healthLimit	= CreateConVar("l4d2_votes_returnblood_limit", "100", "最高回血上限。（仅影响回血时的上限，不影响其它情况下的血量上限）", FCVAR_SERVER_CAN_EXECUTE, true, 40.0, true, 500.0);
+	cv_restore		= CreateConVar("l4d2_votes_changelevel_restore", "1", "更换地图后重置多倍弹药、自动红外、玩家人数、击杀回血、友伤系数（正常过关不会重置）", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
+	AutoExecConfig(true, "l4d2_votes");
 	cv_ammoMode.AddChangeHook(AmmoModeChanged);
 	cv_autoLaser.AddChangeHook(AutoLaserChanged);
 	cv_voteDelay.AddChangeHook(VoteDelayChanged);
 	cv_smVoteDelay.AddChangeHook(VoteDelayChanged);
 	HookEvent("player_death", Event_player_death, EventHookMode_Post);
 	HookEvent("weapon_reload", Event_weapon_reload, EventHookMode_Post); // 玩家换弹
+	HookEvent("map_transition", Event_map_transition, EventHookMode_PostNoCopy);
 	AddNormalSoundHook(OnNormalSound); // 挂钩声音
 
 	RegServerCmd("l4d2_votes_additem", Cmd_additem, "给投票菜单增加选项");
@@ -110,8 +119,35 @@ public void OnPluginStart()
 	}
 }
 
+public Action Event_map_transition(Event event, const char[] name, bool dontBroadcast)
+{
+	g_hasMapTransitioned = true;
+}
+public void OnMapStart()
+{
+	g_ammoMode = cv_ammoMode.IntValue;
+	g_autoLaser = cv_autoLaser.IntValue;
+	g_players = cv_players.IntValue;
+	g_returnBlood = cv_returnBlood.IntValue;
+}
 public void OnConfigsExecuted()
 {
+	if (g_hasMapTransitioned || !cv_restore.BoolValue)
+	{
+		// 如果是正常过关，或者设定更换地图不重置功能开关，则还原为之前的功能设置
+		cv_ammoMode.IntValue = g_ammoMode;
+		cv_autoLaser.IntValue = g_autoLaser;
+		cv_players.IntValue	= g_players;
+		cv_returnBlood.IntValue = g_returnBlood;
+	}
+	else
+	{
+		// 否则，则不保留之前的设置
+		for (int i=0; i<4; i++)
+			cv_thFactor[i].RestoreDefault();
+	}
+	g_hasMapTransitioned = false;
+
 	if (cv_players.IntValue > 0 && null != cv_svmaxplayers)
 		cv_svmaxplayers.IntValue = cv_players.IntValue;
 	cv_smVoteDelay.IntValue = cv_voteDelay.IntValue;
