@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.3",
+	version = "2.4",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -25,8 +25,11 @@ ConVar cv_l4dSurvivorLimit;
 ConVar cv_svmaxplayers;
 ConVar cv_survivorLimit;
 ConVar cv_maxs;
+int g_maxs;
 ConVar cv_autoGive;
+int g_autoGive;
 ConVar cv_autoSupply;
+int g_autoSupply;
 ConVar cv_allowSset;
 ConVar cv_autoJoin;
 ConVar cv_onlySafeAddBot;
@@ -35,13 +38,15 @@ ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 
 bool g_isOnVersus = true; // 本插件不应该用在对抗中，但是可以用在基于对抗的药役中
-ArrayList g_autoGive; // 自动给予哪些物品
+ArrayList g_autoGiveWeapen; // 自动给予哪些物品
 ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allHumanInGame = true; // 所有玩家是否已经载入 默认为true是为了在游戏中途加载插件时能正常工作
 
-bool g_autoJoin[MAXPLAYERS+1] = true; // 哪些玩家自动加入生还者
-int g_lastTpTime[MAXPLAYERS+1] = 0; // 玩家上次使用tp时间
+bool g_autoJoin[MAXPLAYERS+1]; // 哪些玩家自动加入生还者
+int g_lastTpTime[MAXPLAYERS+1]; // 玩家上次使用tp时间
+
+bool g_hasMapTransitioned = false; // 是否发生地图过渡
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -102,9 +107,35 @@ public void OnPluginStart()
 	HookEvent("finale_win", Event_round_end, EventHookMode_Pre);
 	HookEvent("round_end", Event_round_end, EventHookMode_Pre);
 	HookEvent("player_team", Event_player_team, EventHookMode_Post);
+	HookEvent("map_transition", Event_map_transition, EventHookMode_PostNoCopy);
 
 	g_supply = CreateArray(40);
-	g_autoGive = CreateArray(40);
+	g_autoGiveWeapen = CreateArray(40);
+}
+
+public Action Event_map_transition(Event event, const char[] name, bool dontBroadcast)
+{
+	g_hasMapTransitioned = true;
+}
+public void OnMapStart()
+{
+	g_maxs = cv_maxs.IntValue;
+	g_autoGive = cv_autoGive.IntValue;
+	g_autoSupply = cv_autoSupply.IntValue;
+}
+public void OnConfigsExecuted()
+{
+	if (g_hasMapTransitioned)
+	{
+		cv_maxs.IntValue = g_maxs;
+		cv_autoGive.IntValue = g_autoGive;
+		cv_autoSupply.IntValue	= g_autoSupply;
+	}
+	g_hasMapTransitioned = false;
+
+	if (cv_allowSset.IntValue >= 0 && null != cv_svmaxplayers)
+		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
+	g_isOnVersus = (GetBaseMode() == OnVersus);
 }
 
 public Action Cmd_forceaddbot(int client, int agrs)
@@ -345,14 +376,14 @@ public Action Cmd_autogive(int client, int args)
 		// 如果是在服务器执行，则列出当前自动给予物品列表
 		if (0 == client)
 		{
-			int len = g_autoGive.Length;
+			int len = g_autoGiveWeapen.Length;
 			if (0 == len)
 				PrintToServer("未设置自动给予的物品，将默认给予MP5");
 			else
 			{
 				for (int i=0; i<len; i++)
 				{
-					g_autoGive.GetString(i, buffer, sizeof(buffer));
+					g_autoGiveWeapen.GetString(i, buffer, sizeof(buffer));
 					PrintToServer("出生自动给予物品 %d : %s", i, buffer);
 				}
 			}
@@ -381,12 +412,12 @@ public Action Cmd_autogive(int client, int args)
 		}
 		else if (strcmp(buffer, "clear", false) == 0 && 0 == client)
 		{
-			g_autoGive.Clear();
+			g_autoGiveWeapen.Clear();
 		}
 		else if (0 == client) // 只允许在服务器端命令行设置物资 防止玩家指令误操作
 		{
-			if (-1 == g_autoGive.FindString(buffer))
-				g_autoGive.PushString(buffer);
+			if (-1 == g_autoGiveWeapen.FindString(buffer))
+				g_autoGiveWeapen.PushString(buffer);
 		}
 	}
 	else if (0 == client)
@@ -411,20 +442,12 @@ public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[]
 		cv_maxs.IntValue = cv_svmaxplayers.IntValue;
 }
 
-public void OnConfigsExecuted()
-{
-	if (cv_allowSset.IntValue >= 0 && null != cv_svmaxplayers)
-		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
-	g_isOnVersus = (GetBaseMode() == OnVersus);
-}
-
-public void OnClientDisconnect(int client)
+public bool OnClientConnect(int client)
 {
 	// 重置一些数据
-	if (IsFakeClient(client))
-		return;
 	g_autoJoin[client] = true;
 	g_lastTpTime[client] = 0;
+	return true;
 }
 
 public void OnMapEnd()
@@ -507,17 +530,15 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 // 让玩家自动加入生还者
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
-	if (IsClientConnected(client))
+	if (!IsClientConnected(client))
+		return Plugin_Stop;
+	// 等待玩家完全进入游戏再使其自动加入
+	if (g_allHumanInGame && IsClientInGame(client))
 	{
-		// 等待玩家完全进入游戏再使其自动加入
-		if (!g_allHumanInGame || IsClientInGame(client))
-		{
-			JoinSurvivor(client);
-			return Plugin_Stop;
-		}
-		return Plugin_Continue;
+		JoinSurvivor(client);
+		return Plugin_Stop;
 	}
-	return Plugin_Stop;
+	return Plugin_Continue;
 }
 public Action Timer_SetMultiple(Handle timer)
 {
@@ -767,13 +788,13 @@ void GivePlayerSupply(int client)
 {
 	if (!IsValidClient(client))
 		return;
-	int len = g_autoGive.Length;
+	int len = g_autoGiveWeapen.Length;
 	char buffer[40];
 	if (len > 0)
 	{
 		for (int i=0; i<len; i++)
 		{
-			g_autoGive.GetString(i, buffer, sizeof(buffer));
+			g_autoGiveWeapen.GetString(i, buffer, sizeof(buffer));
 			CheatCommand(client, "give", buffer);
 		}
 	}
