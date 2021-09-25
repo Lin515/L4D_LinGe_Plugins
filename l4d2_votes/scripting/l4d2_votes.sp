@@ -10,7 +10,7 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.4",
+	version = "1.5",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -582,7 +582,7 @@ void SetAmmoMode()
 	}
 	cv_ammoInfinite.IntValue = 0;
 
-	if (mode>=1 || mode<=3) // 1倍、2倍、3倍弹药
+	if (mode>=1 && mode<=3) // 1倍、2倍、3倍弹药
 	{
 		char buffer[10];
 		// 设置的新弹药量
