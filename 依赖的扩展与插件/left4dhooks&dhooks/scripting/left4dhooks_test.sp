@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.50"
+#define PLUGIN_VERSION		"1.60"
 
 /*=======================================================================================
 	Plugin Info:
@@ -31,6 +31,46 @@
 
 ========================================================================================
 	Change Log:
+
+1.60 (29-Sep-2021)
+	- Added native "L4D2_GrenadeLauncherPrj" to create an activated Grenade Launcher projectile which detonates on impact. L4D2 only.
+	- Fixed L4D1 Linux "MolotovProjectile_Create" signature. Thanks to "Ja-Forces" for reporting.
+
+1.58 (29-Sep-2021)
+	- Added native "L4D_MolotovPrj" to create an activated Molotov projectile which detonates on impact.
+	- Added native "L4D2_VomitJarPrj" to create an activated VomitJar projectile which detonates on impact. L4D2 only.
+	- Added "STATE_*" enums to the include file for use with the "L4D_State_Transition" native. Thanks to "BHaType" for providing.
+	- Fixed some incorrect information in the include file. Thanks to "jackz" for reporting.
+
+1.54 (12-Sep-2021)
+	- Big thanks to "Forgetest" and "HarryPotter" for helping fix and test this release.
+
+	- Added forward "L4D_OnGameModeChange" to notify plugins when the mode has changed to Coop, Versus, Survival and Scavenge (L4D2).
+	- Added native "L4D_GetGameModeType" to return if the current game mode is Coop, Versus, Survival or Scavenge (L4D2).
+
+	- Update for L4D1:
+
+	- Fixed on Linux forward "L4D_OnSpawnWitch" from not triggering for some Witch spawns. Thanks to "Forgetest" for fixing.
+	- Fixed on Linux forward "L4D_OnTryOfferingTankBot" from not triggering on the first tank. Thanks to "Forgetest" for fixing.
+	- Unlocked native "L4D2Direct_GetMobSpawnTimer" for usage in L4D1. Thanks to "HarryPotter" for reporting functionality.
+	- Unlocked native "L4D2Direct_GetTankCount" for usage in L4D1. Missed this from the last update.
+
+1.53 (07-Sep-2021)
+	- Update for L4D1:
+
+	- Added forward "L4D_OnRecalculateVersusScore" from "raziEiL"'s port of "L4D Direct".
+	- Added natives "L4DDirect_GetSurvivorHealthBonus", "L4DDirect_SetSurvivorHealthBonus" and "L4DDirect_RecomputeTeamScores" from "raziEiL"'s port of "L4D Direct".
+	- Unblocked native "L4D_GetTeamScore" for usage.
+	- Fixed forward "L4D_OnFirstSurvivorLeftSafeArea" not blocking correctly. Thanks to "Forgetest" for the solution.
+	- Various fixes and additions thanks to "HarryPotter" for requesting.
+
+1.52 (31-Aug-2021)
+	- Added L4D1 and L4D2 specific "ACT_*" animation activity constants to the include file for usage in animation pre-hooks. See the include file for details.
+
+1.51 (10-Aug-2021)
+	- Added natives "L4D_GetCurrentChapter" and "L4D_GetMaxChapters" to get the current and max chapters count. Thanks to "Psyk0tik" for help.
+	- L4D1: added natives "L4D_GetVersusMaxCompletionScore" and "L4D_SetVersusMaxCompletionScore" to get/set Versus max score. Thanks to "BHaType" for offsets.
+	- L4D1: Fixed broken "CThrowActivate" signature due to the 1.0.4.0 update. Thank to "matrixmark" for reporting.
 
 1.50 (22-Jul-2021)
 	- Fixed "Native was not found" errors in L4D1. Thanks to "xerox8521" for reporting.
@@ -192,11 +232,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 
-	// (+2 for "L4D2_OnEndVersusModeRound_Post" and "L4D2_OnSelectTankAttackPre")
 	if( g_bLeft4Dead2 )
-		g_iForwardsMax = 48;
+		g_iForwardsMax = 49;
 	else
-		g_iForwardsMax = 37;
+		g_iForwardsMax = 39;
 
 	return APLRes_Success;
 }
@@ -295,43 +334,44 @@ public void player_spawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client && IsClientInGame(client) )
-		AnimHookEnable(client, OnAnim, OnAnimPost);
+		AnimHookEnable(client, OnAnimPre, OnAnimPost);
 }
 
 public void player_incapacitated(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( GetClientTeam(client) == 2 )
-		AnimHookEnable(client, OnAnim, OnAnimPost);
+		AnimHookEnable(client, OnAnimPre, OnAnimPost);
 }
 
 public void revive_success(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	AnimHookDisable(client, OnAnim, OnAnimPost);
+	AnimHookDisable(client, OnAnimPre, OnAnimPost);
 }
 
 public void player_death(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
-	AnimHookDisable(client, OnAnim, OnAnimPost);
+	AnimHookDisable(client, OnAnimPre, OnAnimPost);
 }
 
 public void round_end(Event event, const char[] name, bool dontBroadcast)
 {
 	for( int i = 1; i <= MaxClients; i++ )
 	{
-		AnimHookDisable(i, OnAnim, OnAnimPost);
+		AnimHookDisable(i, OnAnimPre, OnAnimPost);
 	}
 }
 
 // Uses "Activity" numbers, which means 1 animation number is the same for all Survivors.
-Action OnAnim(int client, int &anim)
+Action OnAnimPre(int client, int &anim)
 {
 	// /*
 	if( g_bCrawling )
 	{
-		anim = g_bLeft4Dead2 ? 696 : 1197;
+		// anim = g_bLeft4Dead2 ? 696 : 1197;
+		anim = g_bLeft4Dead2 ? L4D2_ACT_TERROR_INCAP_CRAWL : L4D1_ACT_TERROR_INCAP_CRAWL; // Include file now has *_ACT_* constants from version 1.52
 		return Plugin_Changed;
 	}
 	// */
@@ -339,7 +379,7 @@ Action OnAnim(int client, int &anim)
 	return Plugin_Continue;
 }
 
-// Uses "m_nSequence" animation numbers, which are different for each model.
+// Uses "m_nSequence" animation numbers, which are different for each character model.
 Action OnAnimPost(int client, int &anim)
 {
 	/*
@@ -417,8 +457,11 @@ public Action sm_l4dd(int client, int args)
 	// =========================
 	// NATIVES - Mine
 	// =========================
-
 	/*
+	// WORKS
+	// int iCurrentMode = L4D_GetGameModeType();
+	// PrintToServer("GameMode %d", iCurrentMode);
+
 	// WORKS
 	// When a Survivor is taking over another Survivor, should change team to 0 otherwise the players old character will disappear.
 	ChangeClientTeam(client, 0);
@@ -655,17 +698,35 @@ public Action sm_l4dd(int client, int args)
 	// WORKING
 	// The "Fuse" + "Light" particles must be manually added in your plugin.
 	// I intentionally did not include this in left4dhooks in case you wanted to create an activated PipeBomb projectile without the particles.
-	int pipe = L4D_PipeBombPrj(client, vPos, vAng);
+	int projectile = L4D_PipeBombPrj(client, vPos, vAng);
 
 	// Create particles
-	CreateParticle(pipe, 0);
-	CreateParticle(pipe, 1);
+	CreateParticle(projectile, 0);
+	CreateParticle(projectile, 1);
 
 	// Might work, from "PipeBomb Shove" plugin
-	SetEntPropFloat(pipe, Prop_Data, "m_DmgRadius", 400.0);
-	SetEntPropFloat(pipe, Prop_Data, "m_flDamage", 25.0);
+	SetEntPropFloat(projectile, Prop_Data, "m_DmgRadius", 400.0);
+	SetEntPropFloat(projectile, Prop_Data, "m_flDamage", 25.0);
 
-	PrintToServer("L4D2_PipeBombPrj %d", pipe);
+	PrintToServer("L4D2_PipeBombPrj %d", projectile);
+
+
+
+	// WORKING
+	projectile = L4D_MolotovPrj(client, vPos, vAng);
+	PrintToServer("L4D_MolotovPrj %d", projectile);
+
+
+
+	// WORKING
+	if( g_bLeft4Dead2 )
+	{
+		projectile = L4D2_VomitJarPrj(client, vPos, vAng);
+		PrintToServer("L4D2_VomitJarPrj %d", projectile);
+
+		projectile = L4D2_GrenadeLauncher(client, vPos, vAng);
+		PrintToServer("L4D2_GrenadeLauncher %d", projectile);
+	}
 
 
 
@@ -675,7 +736,7 @@ public Action sm_l4dd(int client, int args)
 	vDir = view_as<float>({ -1.0, 0.0, 0.0}); // Spin sideways
 	NormalizeVector(vDir, vDir);
 	ScaleVector(vDir, 10000.0);
-	PrintToServer("L4D_AngularVelocity %d",								L4D_AngularVelocity(pipe, vDir));
+	PrintToServer("L4D_AngularVelocity %d",								L4D_AngularVelocity(projectile, vDir));
 
 
 
@@ -898,9 +959,6 @@ public Action sm_l4dd(int client, int args)
 		PrintToServer("L4D_GetTeamScore A Camp: %d",				L4D_GetTeamScore(1, true)); //WORKING
 		PrintToServer("L4D_GetTeamScore B Camp: %d",				L4D_GetTeamScore(2, true)); //WORKING
 
-		PrintToServer("L4D_GetVersusMaxCompletionScore %d",			L4D_GetVersusMaxCompletionScore()); //WORKING
-		L4D_SetVersusMaxCompletionScore(314); //WORKING
-		PrintToServer("L4D_SetVersusMaxCompletionScore %d",			L4D_GetVersusMaxCompletionScore()); //WORKING
 		PrintToServer("");
 		PrintToServer("");
 		PrintToServer("L4D_ScavengeBeginRoundSetupTime %f",			L4D_ScavengeBeginRoundSetupTime());
@@ -909,6 +967,12 @@ public Action sm_l4dd(int client, int args)
 		PrintToServer("");
 		PrintToServer("");
 	}
+
+	PrintToServer("L4D_GetVersusMaxCompletionScore %d",			L4D_GetVersusMaxCompletionScore()); //WORKING
+	L4D_SetVersusMaxCompletionScore(314); //WORKING
+
+	PrintToServer("L4D_GetMaxChapters %d", L4D_GetMaxChapters()); //WORKING
+	PrintToServer("L4D_GetCurrentChapter %d", L4D_GetCurrentChapter()); //WORKING
 
 	PrintToServer("L4D_NotifyNetworkStateChanged %d",				L4D_NotifyNetworkStateChanged()); //SEEMS WORKING, UNKNOWN
 
@@ -1074,6 +1138,14 @@ public Action sm_l4dd(int client, int args)
 	ITimer_SetTimestamp(itPTR, GetGameTime() + 2.0);
 
 
+
+	if( !g_bLeft4Dead2 )
+	{
+		// UNTESTED:
+		L4DDirect_GetSurvivorHealthBonus(client);
+		L4DDirect_SetSurvivorHealthBonus(client, 2);
+		L4DDirect_RecomputeTeamScores();
+	}
 
 
 
@@ -1638,6 +1710,21 @@ public void L4D2_OnEndVersusModeRound_Post()
 	}
 }
 
+public Action L4D_OnRecalculateVersusScore(int client)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnRecalculateVersusScore\"");
+	}
+
+	// UNTESTED
+	// return Plugin_Handled;
+}
+
 public Action L4D_OnLedgeGrabbed(int client)
 {
 	static int called;
@@ -2012,8 +2099,6 @@ public Action L4D2_OnChangeFinaleStage(int &finaleType, const char[] arg)
 
 public Action L4D2_OnClientDisableAddons(const char[] SteamID)
 {
-	PrintToServer("#### FWD L4D2_OnClientDisableAddons %s", SteamID);
-
 	static int called;
 	if( called < MAX_CALLS )
 	{
@@ -2026,6 +2111,19 @@ public Action L4D2_OnClientDisableAddons(const char[] SteamID)
 	// Requires l4d2_addons_eclipse 1 to be used.
 	// return Plugin_Continue; // Block addons.
 	// return Plugin_Handled; // Allow addons.
+}
+
+
+public Action L4D_OnGameModeChange(int gamemode)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		called++;
+		g_iForwards++;
+
+		ForwardCalled("\"L4D_OnGameModeChange\" %d", gamemode);
+	}
 }
 
 /*
@@ -2078,6 +2176,9 @@ public void L4D2_OnWaterMove(int client)
 
 
 
+// ====================================================================================================
+// HELPERS
+// ====================================================================================================
 void ForwardCalled(const char[] format, any ...)
 {
 	if( g_bTestForwards == false ) return;
