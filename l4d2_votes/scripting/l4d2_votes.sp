@@ -10,7 +10,7 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.5",
+	version = "1.6",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -130,9 +130,12 @@ public void OnMapStart()
 	g_players = cv_players.IntValue;
 	g_returnBlood = cv_returnBlood.IntValue;
 }
+
+bool g_isValidConVar = false;
 public void OnConfigsExecuted()
 {
-	if (g_hasMapTransitioned || !cv_restore.BoolValue)
+	if ((g_hasMapTransitioned || !cv_restore.BoolValue)
+	&& g_isValidConVar)
 	{
 		// 如果是正常过关，或者设定更换地图不重置功能开关，则还原为之前的功能设置
 		cv_ammoMode.IntValue = g_ammoMode;
@@ -147,6 +150,7 @@ public void OnConfigsExecuted()
 			cv_thFactor[i].RestoreDefault();
 	}
 	g_hasMapTransitioned = false;
+	g_isValidConVar = true;
 
 	if (cv_players.IntValue > 0 && null != cv_svmaxplayers)
 		cv_svmaxplayers.IntValue = cv_players.IntValue;
