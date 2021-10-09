@@ -282,7 +282,7 @@ stock bool IsAllHumanInGame()
 // 若返回>0，则说明有真实玩家就位，并且返回值为其真实玩家client
 stock int GetHumanClient(int bot)
 {
-	if (IsAlive(bot))
+	if (IsAlive(bot) && HasEntProp(bot, Prop_Send, "m_humanSpectatorUserID"))
 	{
 		int human = GetClientOfUserId(GetEntProp(bot, Prop_Send, "m_humanSpectatorUserID"));
 		if (human > 0)
