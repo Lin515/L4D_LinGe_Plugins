@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.5",
+	version = "2.6",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -503,9 +503,14 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 	if (IsValidClient(client, true))
 	{
 		// 自动让玩家加入生还者
-		if (!IsFakeClient(client) && cv_autoJoin.IntValue==1)
+		if (!IsFakeClient(client) && oldteam == 0)
 		{
-			if (oldteam == 0)
+			// 如果直接加入到了死亡的bot中，则将其复活
+			if (team == 2 && !IsAlive(client))
+			{
+				CreateTimer(0.2, Delay_RespawnPlayer, client);
+			}
+			else if (team == 1 && g_autoJoin[client] && cv_autoJoin.IntValue==1)
 			{
 				CreateTimer(0.2, Timer_AutoJoinSurvivor, client, TIMER_REPEAT);
 			}
@@ -519,6 +524,12 @@ public Action Event_player_team(Event event, const char[] name, bool dontBroadca
 		}
 	}
 }
+public Action Delay_RespawnPlayer(Handle timer, any client)
+{
+	RespawnTeleportGiveSupply(client);
+	// 踢走游戏自己创建的多余bot
+	KickAllBot();
+}
 // 让玩家自动加入生还者
 public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 {
@@ -527,13 +538,6 @@ public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 	// 等待玩家完全进入游戏再使其自动加入
 	if (g_allHumanInGame && IsClientInGame(client))
 	{
-		if (GetClientTeam(client) == 2)
-		{
-			// 有时候新玩家加入游戏会加入到游戏自己产生的bot
-			// 大部分情况下他们都是死亡的
-			RespawnTeleportGiveSupply(client);
-			KickAllBot();
-		}
 		JoinSurvivor(client);
 		return Plugin_Stop;
 	}
