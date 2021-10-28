@@ -10,12 +10,13 @@ public Plugin myinfo = {
 	name = "l4d2 votes",
 	author = "LinGe",
 	description = "多功能投票：弹药、自动红外、友伤、服务器人数设置、特感击杀回血等",
-	version = "1.6",
+	version = "1.7",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 ConVar cv_svmaxplayers; // sv_maxplayers
 ConVar cv_smVoteDelay; // sm_vote_delay
+ConVar cv_adminPass; // 管理员是否不需要经过投票即可直接执行设置
 ConVar cv_voteDelay;
 ConVar cv_voteTime; // 投票应在多少秒内完成
 ConVar cv_ammoMode; // 弹药模式
@@ -78,6 +79,7 @@ public void OnPluginStart()
 	cv_thFactor[1]	= FindConVar("survivor_friendly_fire_factor_normal");
 	cv_thFactor[2]	= FindConVar("survivor_friendly_fire_factor_hard");
 	cv_thFactor[3]	= FindConVar("survivor_friendly_fire_factor_expert");
+	cv_adminPass	= CreateConVar("l4d2_votes_admin_pass", "1", "管理员发起的指令无需进行投票", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 	cv_voteTime		= CreateConVar("l4d2_votes_time", "20", "投票应在多少秒内完成？", FCVAR_SERVER_CAN_EXECUTE, true, 10.0, true, 60.0);
 	cv_voteDelay	= CreateConVar("l4d2_votes_delay", "10", "玩家需要等待多久才能再次发起投票？将一直锁定sm_vote_delay为本变量的值。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_ammoMode		= CreateConVar("l4d2_votes_ammomode", "1", "多倍弹药模式 -1:完全禁用 0:禁用多倍但允许投票补满所有人弹药 1:一倍且允许开启多倍弹药 2:双倍 3:三倍 4:无限(需换弹) 5:无限(无需换弹)",  FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 5.0);
@@ -433,55 +435,55 @@ void Vote_Exec(int client, const char[] info, const char[] disp)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "GiveAmmo");
 		strcopy(voteDisp, sizeof(voteDisp), "是否同意补满所有生还者弹药？");
-		strcopy(g_votepassDisp, sizeof(g_votepassDisp), "补充所有生还者弹药...");
+		strcopy(g_votepassDisp, sizeof(g_votepassDisp), "补充所有生还者弹药");
 	}
 	else if (strcmp(info, "Vote_Restart") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "Restart");
 		strcopy(voteDisp, sizeof(voteDisp), "是否同意重启当前章节？");
-		strcopy(g_votepassDisp, sizeof(g_votepassDisp), "重启当前章节...");
+		strcopy(g_votepassDisp, sizeof(g_votepassDisp), "重启当前章节");
 	}
 	else if (StrContains(info, "Vote_AmmoMode_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "AmmoMode");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("Vote_AmmoMode_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意设置弹药为 %s ？", disp);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置弹药为 %s ...", disp);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置弹药为 %s", disp);
 	}
 	else if (StrContains(info, "Vote_TeamHurt_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "TeamHurt");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("Vote_TeamHurt_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意设置友伤系数为 %s？", disp);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置友伤系数为 %s ...", disp);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置友伤系数为 %s", disp);
 	}
 	else if (StrContains(info, "Vote_MaxPlayers_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "MaxPlayers");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("Vote_MaxPlayers_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意设置服务器人数为 %s 人？", g_vote.params);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置服务器人数为 %s 人...", g_vote.params);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "设置服务器人数为 %s 人", g_vote.params);
 	}
 	else if (StrContains(info, "Vote_ReturnBlood_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "ReturnBlood");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("Vote_ReturnBlood_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意%s？", disp);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s...", disp);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s", disp);
 	}
 	else if (StrContains(info, "Vote_AutoLaser_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "AutoLaser");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("Vote_AutoLaser_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意%s？", disp);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s...", disp);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s", disp);
 	}
 	else if (StrContains(info, "ServerCommand_") == 0)
 	{
 		strcopy(g_vote.action, sizeof(g_vote.action), "ServerCommand");
 		strcopy(g_vote.params, sizeof(g_vote.params), info[strlen("ServerCommand_")]);
 		FormatEx(voteDisp, sizeof(voteDisp), "是否同意%s？", disp);
-		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s...", disp);
+		FormatEx(g_votepassDisp, sizeof(g_votepassDisp), "%s", disp);
 	}
 	else
 	{
@@ -489,18 +491,32 @@ void Vote_Exec(int client, const char[] info, const char[] disp)
 		return;
 	}
 
-	int[] players = new int[MaxClients];
-	int count = 0;
-	for (int i=1; i<=MaxClients; i++)
+	if (GetUserAdmin(client) != INVALID_ADMIN_ID && cv_adminPass.IntValue == 1)
 	{
-		if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) == 1))
-			continue;
-		players[count++] = i;
+		// 如果管理员不需要经过投票，则跳过投票流程
+		char name[MAX_NAME_LENGTH];
+		GetClientName(client, name, sizeof(name));
+		PrintToChatAll("\04管理员\x03 %s \x04执行了指令：\x03%s", name, g_votepassDisp);
+		Delay_VotePass(INVALID_HANDLE);
 	}
-	g_voteExt = CreateBuiltinVote(Vote_ActionHandler_Ext, BuiltinVoteType_Custom_YesNo, BuiltinVoteAction_Cancel | BuiltinVoteAction_VoteEnd | BuiltinVoteAction_End);
-	SetBuiltinVoteArgument(g_voteExt, voteDisp);
-	SetBuiltinVoteInitiator(g_voteExt, client);
-	DisplayBuiltinVote(g_voteExt, players, count, cv_voteTime.IntValue);
+	else
+	{
+		// 正常发起投票流程
+		int[] players = new int[MaxClients];
+		int count = 0;
+		for (int i=1; i<=MaxClients; i++)
+		{
+			if (!IsClientInGame(i) || IsFakeClient(i) || (GetClientTeam(i) == 1))
+				continue;
+			players[count++] = i;
+		}
+		g_voteExt = CreateBuiltinVote(Vote_ActionHandler_Ext, BuiltinVoteType_Custom_YesNo,
+			BuiltinVoteAction_Cancel | BuiltinVoteAction_VoteEnd | BuiltinVoteAction_End);
+		SetBuiltinVoteArgument(g_voteExt, voteDisp);
+		SetBuiltinVoteInitiator(g_voteExt, client);
+		DisplayBuiltinVote(g_voteExt, players, count, cv_voteTime.IntValue);
+		FakeClientCommand(client, "Vote Yes"); // 发起投票的人默认同意
+	}
 }
 
 public int Vote_ActionHandler_Ext(Handle vote, BuiltinVoteAction action, int param1, int param2)
