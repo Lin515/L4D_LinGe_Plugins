@@ -16,7 +16,7 @@ public Plugin myinfo = {
 	name = "[L4D & L4D2] Map Vote",
 	author = "LinGe, SilverShot",
 	description = "投票换图",
-	version = "2.1",
+	version = "2.2",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -445,6 +445,7 @@ void StartVote(int client)
 		SetBuiltinVoteArgument(g_voteExt, sBuffer);
 		SetBuiltinVoteInitiator(g_voteExt, client);
 		DisplayBuiltinVote(g_voteExt, g_iPlayers, g_iNumPlayers, cv_voteTime.IntValue);
+		FakeClientCommand(client, "Vote Yes"); // 发起投票的人默认同意
 	}
 	else
 	{

@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION		"2.0"
+#define PLUGIN_VERSION		"2.1"
 
 /*======================================================================================
 	Plugin Info:
@@ -12,6 +12,9 @@
 
 ========================================================================================
 	Change Log:
+2.1 (26-Oct-2021) by LinGe
+	- 发起投票的人默认同意本次投票
+
 2.0 (19-Jun-2021) by LinGe
 	- 增加功能：可以使用builtinvotes扩展发起游戏内置投票
 	- 原菜单投票功能的实现改为SourceMod的API函数实现
@@ -578,6 +581,7 @@ void StartVote(int client, int iMode)
 		SetBuiltinVoteArgument(g_voteExt, sBuffer);
 		SetBuiltinVoteInitiator(g_voteExt, client);
 		DisplayBuiltinVote(g_voteExt, g_iPlayers, g_iNumPlayers, g_fCvarTimeout);
+		FakeClientCommand(client, "Vote Yes"); // 发起投票的人默认同意
 	}
 	else
 	{
