@@ -1,41 +1,57 @@
 give指令 给予物品指令可用武器代码 可用来设置自动给予物品的参数
+主武器：
 grenade_lancher 榴弹发射器
 shotgun_chrome 铁喷
 pampshotgun 木喷
-autoshotgun 一代连喷
-shotgun_spas SPAS12散弹枪
+smg UZI冲锋枪
+smg_mp5 MP5冲锋枪
+smg_silenced 消音冲锋枪
+autoshotgun 一代经典连喷
+shotgun_spas SPAS12散弹枪（二代连喷）
 rifle M16步枪
 rifle_ak47 AK47步枪
 rifle_desert SCAR三连发
 rifle_sg552 SG552步枪
-smg UZI冲锋枪
-smg_mp5 MP5冲锋枪
-smg_silenced 消音冲锋枪
-sniper_awp AWP
-sniper_military 30连狙
-sniper_scout SCOUT狙击枪
-hunting_rifle 木狙
-machete 小刀
+rifle_m60 M60
+hunting_rifle 15连木狙
+sniper_military 30连军狙
+sniper_scout cs小鸟枪
+sniper_awp cs大狙
+副武器：
 pistol 普通手枪
 pistol_magnum 马格南
+crowbar 圣剑
+fireaxe 斧头
 tonfa 警棍
+knife 小刀
+machete 砍刀
+katana 武士刀
+shovel 铲子
+pitchfork 干草叉
+golfclub 高尔夫球棍
 baseball_bat 棒球棒
+cricket_bat 板球棒
 chainsaw 电锯
 electric_guitar 吉他
 frying_pan 平底锅
-molotov 火焰弹
-pipe_bomb 管状炸药
-vomitjar BOOMER呕吐物
+riotshield 防爆盾
+投掷：
+molotov 燃烧瓶
+pipe_bomb 土制炸弹
+vomitjar 胆汁
+工具包：
 upgradepack_explosive 高爆弹药包
 upgradepack_incendiary 燃烧弹包
 defibrillator 电震器
 first_aid_kit 血包
+药物：
 pain_pills 止痛药
 adrenaline 肾上腺素
+特殊道具：
 gascan 油箱
 oxygentank 氧气罐
 propanetank 煤气罐
-fireworkcrate 烟火箱子
+fireworkcrate 烟花
 gnome 侏儒
 
 物品生成实体代码 可用来设置哪些物品自动多倍 更多请查阅https://developer.valvesoftware.com/wiki/List_of_L4D2_Entities
