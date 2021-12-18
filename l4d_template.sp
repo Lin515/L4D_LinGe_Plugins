@@ -16,7 +16,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	EngineVersion game = GetEngineVersion();
 	if (game!=Engine_Left4Dead && game!=Engine_Left4Dead2)
 	{
-		strcopy(error, err_max, "本插件只支持 Left 4 Dead 1&2 ");
+		strcopy(error, err_max, "本插件只支持 Left 4 Dead 1&2.");
 		return APLRes_SilentFailure;
 	}
 	return APLRes_Success;
