@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.7",
+	version = "2.8",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -37,6 +37,7 @@ ArrayList g_supply; // 哪些启用多倍物资补给
 int g_nowMultiple = 1; // 当前物资倍数
 bool g_allHumanInGame = true; // 所有玩家是否已经载入 默认为true是为了在游戏中途加载插件时能正常工作
 
+int g_clientSerial[MAXPLAYERS+1];
 bool g_autoJoin[MAXPLAYERS+1]; // 哪些玩家自动加入生还者
 int g_lastTpTime[MAXPLAYERS+1]; // 玩家上次使用tp时间
 
@@ -102,6 +103,8 @@ public void OnPluginStart()
 
 	g_supply = CreateArray(40);
 	g_autoGiveWeapen = CreateArray(40);
+	for (int i=0; i<MAXPLAYERS+1; i++)
+		g_clientSerial[i] = -1;
 }
 
 public Action Event_map_transition(Event event, const char[] name, bool dontBroadcast)
@@ -438,7 +441,12 @@ public void MaxplayersChanged(ConVar convar, const char[] oldValue, const char[]
 public bool OnClientConnect(int client)
 {
 	// 重置一些数据
-	g_autoJoin[client] = true;
+	int serial = GetClientSerial(client);
+	if (g_clientSerial[client] != serial)
+	{
+		g_clientSerial[client] = serial;
+		g_autoJoin[client] = true;
+	}
 	g_lastTpTime[client] = 0;
 	return true;
 }
