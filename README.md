@@ -12,4 +12,7 @@
   一个简单的服务器管理插件，让服务器动态管理大厅和自动休眠。依赖[left4dhooks&dhooks](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/left4dhooks%26dhooks)。
 - **l4d_votemode**  
   基于Silver的l4d_votemode修改，依赖[builtinvotes](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/builtinvotes)扩展来发起游戏内置投票。
-
+- **hostname**  
+  控制服务器名。
+- **l4d2_wpgive**  
+  武器获取菜单。
