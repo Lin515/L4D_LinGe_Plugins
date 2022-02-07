@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.8",
+	version = "2.9",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -30,6 +30,9 @@ ConVar cv_onlySafeAddBot;
 ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
+ConVar cv_autoRespawn;
+// 玩家死亡时，进行倒计时，倒计时完毕可以自主复活
+int g_countDown[MAXPLAYERS+1];
 
 bool g_isOnVersus = true; // 本插件不应该用在对抗中，但是可以用在基于对抗的药役中
 ArrayList g_autoGiveWeapen; // 自动给予哪些物品
@@ -68,6 +71,7 @@ public void OnPluginStart()
 	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
 	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
+	cv_autoRespawn		= CreateConVar("l4d2_multislots_auto_respawn", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -85,6 +89,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
 
 	AddCommandListener(Command_Jointeam, "jointeam");
+	AddCommandListener(Command_Vote, "Vote");
 	RegConsoleCmd("sm_jg", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_join", Cmd_joingame, "玩家加入生还者");
 	RegConsoleCmd("sm_joingame", Cmd_joingame, "玩家加入生还者");
@@ -100,11 +105,15 @@ public void OnPluginStart()
 	HookEvent("finale_win", Event_round_end, EventHookMode_Pre);
 	HookEvent("round_end", Event_round_end, EventHookMode_Pre);
 	HookEvent("player_team", Event_player_team, EventHookMode_Post);
+	HookEvent("player_death", Event_player_death, EventHookMode_PostNoCopy);
 
 	g_supply = CreateArray(40);
 	g_autoGiveWeapen = CreateArray(40);
 	for (int i=0; i<MAXPLAYERS+1; i++)
+	{
 		g_clientSerial[i] = -1;
+		g_countDown[i] = 30;
+	}
 }
 
 public Action Event_map_transition(Event event, const char[] name, bool dontBroadcast)
@@ -552,6 +561,61 @@ public Action Timer_SetMultiple(Handle timer)
 	SetMultiple();
 }
 
+// 玩家死亡事件
+public Action Event_player_death(Event event, const char[] name, bool dontBroadcast)
+{
+	if (cv_autoRespawn.IntValue == 0)
+		return Plugin_Continue;
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (!IsAllowRespawn(client))
+		return Plugin_Continue;
+
+	g_countDown[client] = cv_autoRespawn.IntValue;
+	PrintHintText(client, "在 %d 秒后你可以复活自己", g_countDown[client]);
+	CreateTimer(1.0, Timer_RespawnPlayer, client, TIMER_REPEAT);
+	return Plugin_Continue;
+}
+// 倒计时复活
+public Action Timer_RespawnPlayer(Handle timer, any client)
+{
+	g_countDown[client]--;
+	if (!IsAllowRespawn(client))
+	{
+		g_countDown[client] = cv_autoRespawn.IntValue;
+		return Plugin_Stop;
+	}
+
+	if (g_countDown[client] > 0)
+	{
+		PrintHintText(client, "在 %d 秒后你可以复活自己", g_countDown[client]);
+	}
+	else
+	{
+		PrintHintText(client, "按下F1键复活");
+	}
+	return Plugin_Continue;
+}
+// 监测F1
+public Action Command_Vote(int client, const char[] command, int args)
+{
+	if (g_countDown[client] > 0)
+		return Plugin_Continue;
+	if (!IsAllowRespawn(client))
+		return Plugin_Continue;
+
+	char sArg[8];
+	GetCmdArg(1, sArg, sizeof(sArg));
+	if (strcmp(sArg, "Yes", false) == 0)
+	{
+		// L4D2_VScriptWrapper_ReviveByDefib(client);
+		// TeleportToAliveSurvivor(client);
+		// GivePlayerSupply(client);
+		RespawnTeleportGiveSupply(client);
+	}
+
+	return Plugin_Continue;
+}
+
 void SsetMenuDisplay(int client)
 {
 	char namelist[128];
@@ -774,22 +838,28 @@ void RespawnTeleportGiveSupply(int client)
 	// 如果已经有人离开安全区
 	if (L4D_HasAnySurvivorLeftSafeArea())
 	{
-		// 传送
-		for (int i=1; i<=MaxClients; i++)
-		{
-			if (IsClientInGame(i))
-			{
-				if (GetClientTeam(i) == 2 && client!=i && IsAlive(i))
-				{
-					Teleport(client, i);
-					break;
-				}
-			}
-		}
+		TeleportToAliveSurvivor(client);
 		// 给予物品
 		if (cv_autoGive.IntValue == 1)
 			GivePlayerSupply(client);
 	}
+}
+
+bool TeleportToAliveSurvivor(int client)
+{
+	// 传送
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == 2 && client!=i && IsAlive(i))
+			{
+				Teleport(client, i);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void GivePlayerSupply(int client)
@@ -877,4 +947,36 @@ void WriteTakeoverPanel(int client, int bot)
 	msg.WriteString("character"); //key name
 	msg.WriteString(buf); //key value
 	EndMessage();
+}
+
+// 所有已死亡的玩家数
+stock int GetDeathHumanSurvivors()
+{
+	int num = 0;
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			if (GetClientTeam(i) == TEAM_SURVIVOR && !IsFakeClient(i))
+			{
+				if (!IsAlive(i))
+					num++;
+			}
+		}
+	}
+	return num;
+}
+
+// 是否符合复活条件：必须是已阵亡的真人生还者玩家
+bool IsAllowRespawn(int client)
+{
+	if (!IsValidClient(client)) // 必须在游戏中
+		return false;
+	if (IsFakeClient(client)) // 必须是真人玩家
+		return false;
+	if (GetClientTeam(client) != TEAM_SURVIVOR) // 必须是生还者
+		return false;
+	if (IsAlive(client)) // 必须已经阵亡
+		return false;
+	return true;
 }
