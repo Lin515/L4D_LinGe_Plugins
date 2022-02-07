@@ -355,8 +355,14 @@ stock int GetHumans(bool noNeedInGame=false)
 #define TEAM_SPECTATOR	1
 #define TEAM_SURVIVOR	2
 #define TEAM_INFECTED	3
-// 快速获取指定类型的玩家数量
-// 若不指定任何参数 则获取所有IsClientInGame为真的client数量
+/**
+ * 获得指定类型的玩家数量
+ * 
+ * @param team      玩家队伍，若为TEAM_UNKNOWN则不检查队伍
+ * @param bot       是否可以是BOT
+ * @param alive     是否必须是存活状态
+ * @return          玩家数量
+ */
 stock int GetPlayers(int team=TEAM_UNKNOWN, bool bot=true, bool alive=false)
 {
 	int num = 0;
