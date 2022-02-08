@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.9",
+	version = "2.10",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -30,7 +30,7 @@ ConVar cv_onlySafeAddBot;
 ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
-ConVar cv_autoRespawn;
+ConVar cv_respawnLimit;
 // 玩家死亡时，进行倒计时，倒计时完毕可以自主复活
 int g_countDown[MAXPLAYERS+1];
 
@@ -71,7 +71,7 @@ public void OnPluginStart()
 	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
 	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
 	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
-	cv_autoRespawn		= CreateConVar("l4d2_multislots_auto_respawn", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
+	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -176,7 +176,7 @@ public Action Cmd_away(int client, int args)
 {
 	if (0 == client)
 		return Plugin_Handled;
-	if (GetClientTeam(client) == 1)
+	if (GetClientTeam(client) == TEAM_SPECTATOR)
 	{
 		if (IsClientIdle(client))
 			PrintToChat(client, "\x04你当前已经是闲置状态");
@@ -184,7 +184,7 @@ public Action Cmd_away(int client, int args)
 			PrintToChat(client, "\x04你已经是旁观者了");
 		return Plugin_Handled;
 	}
-	if (GetClientTeam(client) == 2)
+	if (GetClientTeam(client) == TEAM_SURVIVOR)
 		g_autoJoin[client] = false;
 	ChangeClientTeam(client, 1);
 	return Plugin_Handled;
@@ -195,14 +195,14 @@ public Action Cmd_afk(int client, int args)
 	if (0 == client)
 		return Plugin_Handled;
 
-	if (GetClientTeam(client) == 1)
+	if (GetClientTeam(client) == TEAM_SPECTATOR)
 	{
 		if (IsClientIdle(client))
 			PrintToChat(client, "\x04你当前已经是闲置状态");
 		else
 			PrintToChat(client, "\x04你已经是旁观者了");
 	}
-	else if (GetClientTeam(client) != 2)
+	else if (GetClientTeam(client) != TEAM_SURVIVOR)
 		PrintToChat(client, "\x04闲置指令只限生还者使用");
 	else if (!IsAlive(client))
 		PrintToChat(client, "\x04死亡状态无权使用闲置");
@@ -233,7 +233,7 @@ public Action Cmd_tp(int client, int args)
 		}
 	}
 
-	if (GetClientTeam(client) != 2)
+	if (GetClientTeam(client) != TEAM_SURVIVOR)
 	{
 		PrintToChat(client, "\x04只有生还者可以使用传送指令");
 		return Plugin_Handled;
@@ -542,13 +542,14 @@ public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 	if (g_allHumanInGame && IsClientInGame(client))
 	{
 		// 如果加入到了死亡的bot中，则将其复活
-		if (GetClientTeam(client) == 2 && !IsAlive(client))
+		if (GetClientTeam(client) == TEAM_SURVIVOR && !IsAlive(client))
 		{
 			RespawnTeleportGiveSupply(client);
 			// 踢走游戏自己创建的多余bot
 			KickAllBot();
 		}
-		else if (GetClientTeam(client) == 1 && g_autoJoin[client] && cv_autoJoin.IntValue==1)
+		else if (GetClientTeam(client) == TEAM_SPECTATOR 
+			&& g_autoJoin[client] && cv_autoJoin.IntValue==1)
 		{
 			JoinSurvivor(client);
 		}
@@ -564,13 +565,14 @@ public Action Timer_SetMultiple(Handle timer)
 // 玩家死亡事件
 public Action Event_player_death(Event event, const char[] name, bool dontBroadcast)
 {
-	if (cv_autoRespawn.IntValue == 0)
+	PrintToServer("Event_player_death\n");
+	if (cv_respawnLimit.IntValue == 0)
 		return Plugin_Continue;
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (!IsAllowRespawn(client))
 		return Plugin_Continue;
 
-	g_countDown[client] = cv_autoRespawn.IntValue;
+	g_countDown[client] = cv_respawnLimit.IntValue;
 	PrintHintText(client, "在 %d 秒后你可以复活自己", g_countDown[client]);
 	CreateTimer(1.0, Timer_RespawnPlayer, client, TIMER_REPEAT);
 	return Plugin_Continue;
@@ -581,7 +583,9 @@ public Action Timer_RespawnPlayer(Handle timer, any client)
 	g_countDown[client]--;
 	if (!IsAllowRespawn(client))
 	{
-		g_countDown[client] = cv_autoRespawn.IntValue;
+		if (GetClientTeam(client) == TEAM_SPECTATOR)
+			PrintHintText(client, "我的战场不在这里");
+		g_countDown[client] = cv_respawnLimit.IntValue;
 		return Plugin_Stop;
 	}
 
@@ -591,11 +595,11 @@ public Action Timer_RespawnPlayer(Handle timer, any client)
 	}
 	else
 	{
-		PrintHintText(client, "按下F1键复活");
+		PrintHintText(client, "F1:死亡处复活\nF2:队友处复活");
 	}
 	return Plugin_Continue;
 }
-// 监测F1
+// 监测F1/F2
 public Action Command_Vote(int client, const char[] command, int args)
 {
 	if (g_countDown[client] > 0)
@@ -605,12 +609,13 @@ public Action Command_Vote(int client, const char[] command, int args)
 
 	char sArg[8];
 	GetCmdArg(1, sArg, sizeof(sArg));
-	if (strcmp(sArg, "Yes", false) == 0)
+	if (strcmp(sArg, "Yes", false) == 0 || strcmp(sArg, "No", false) == 0 )
 	{
-		// L4D2_VScriptWrapper_ReviveByDefib(client);
-		// TeleportToAliveSurvivor(client);
-		// GivePlayerSupply(client);
-		RespawnTeleportGiveSupply(client);
+		L4D2_VScriptWrapper_ReviveByDefib(client);
+		GivePlayerSupply(client);
+		if (strcmp(sArg, "No", false) == 0)
+			TeleportToAliveSurvivor(client);
+		// RespawnTeleportGiveSupply(client);
 	}
 
 	return Plugin_Continue;
@@ -661,7 +666,7 @@ int DisplayTpMenu(int client)
 	{
 		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2 && IsAlive(i) && i != client)
+			if (GetClientTeam(i) == TEAM_SURVIVOR && IsAlive(i) && i != client)
 			{
 				GetClientName(i, name, sizeof(name));
 				IntToString(i, rec, sizeof(rec));
@@ -686,8 +691,8 @@ public int TpMenuHandler(Menu menu, MenuAction action, int client, int curSel)
 			if ( menu.GetItem(curSel, rec, sizeof(rec)) )
 			{
 				int target = StringToInt(rec);
-				if ( IsValidClient(target) && GetClientTeam(target)==2
-				&& IsValidClient(client) && GetClientTeam(client)==2 )
+				if ( IsValidClient(target) && GetClientTeam(target)==TEAM_SURVIVOR
+				&& IsValidClient(client) && GetClientTeam(client)==TEAM_SURVIVOR )
 				{
 					Teleport(client, target);
 					g_lastTpTime[client] = GetTime();
@@ -750,7 +755,7 @@ void KickAllBot(bool all=true)
 	{
 		if (IsClientInGame(i) && IsFakeClient(i))
 		{
-			if (GetClientTeam(i) == 2)
+			if (GetClientTeam(i) == TEAM_SURVIVOR)
 			{
 				if (GetHumanClient(i) == 0)
 				{
@@ -770,7 +775,7 @@ int JoinSurvivor(int client)
 	if (IsFakeClient(client)) // 不允许BOT通过此函数加入生还
 		return 5;
 	g_autoJoin[client] = true;
-	if (GetClientTeam(client) == 2) // client已经是生还者
+	if (GetClientTeam(client) == TEAM_SURVIVOR) // client已经是生还者
 		return 1;
 	if (IsClientIdle(client)) // client处于闲置
 		return 2;
@@ -845,6 +850,7 @@ void RespawnTeleportGiveSupply(int client)
 	}
 }
 
+// 传送到一个活着的生还者附近
 bool TeleportToAliveSurvivor(int client)
 {
 	// 传送
@@ -852,7 +858,7 @@ bool TeleportToAliveSurvivor(int client)
 	{
 		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2 && client!=i && IsAlive(i))
+			if (GetClientTeam(i) == TEAM_SURVIVOR && client!=i && IsAlive(i))
 			{
 				Teleport(client, i);
 				return true;
@@ -862,6 +868,7 @@ bool TeleportToAliveSurvivor(int client)
 	return false;
 }
 
+// 给予玩家物资
 void GivePlayerSupply(int client)
 {
 	if (!IsValidClient(client))
@@ -887,7 +894,7 @@ int FindBotToTakeOver()
 	{
 		if (IsClientInGame(i))
 		{
-			if (GetClientTeam(i) == 2 && IsFakeClient(i))
+			if (GetClientTeam(i) == TEAM_SURVIVOR && IsFakeClient(i))
 			{
 				if (IsAlive(i) && GetHumanClient(i) == 0)
 					return i;
