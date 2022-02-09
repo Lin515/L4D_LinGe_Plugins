@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.10",
+	version = "2.11",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -840,13 +840,11 @@ void RespawnTeleportGiveSupply(int client)
 	// 如果client是死亡的则复活它
 	if (!IsAlive(client))
 		L4D_RespawnPlayer(client);
-	// 如果已经有人离开安全区
+	// 如果已经有人离开安全区，则传送并给予物资
 	if (L4D_HasAnySurvivorLeftSafeArea())
 	{
 		TeleportToAliveSurvivor(client);
-		// 给予物品
-		if (cv_autoGive.IntValue == 1)
-			GivePlayerSupply(client);
+		GivePlayerSupply(client);
 	}
 }
 
@@ -869,8 +867,10 @@ bool TeleportToAliveSurvivor(int client)
 }
 
 // 给予玩家物资
-void GivePlayerSupply(int client)
+void GivePlayerSupply(int client, bool checkConVar=true)
 {
+	if (checkConVar && cv_autoGive.IntValue == 1)
+		return;
 	if (!IsValidClient(client))
 		return;
 	int len = g_autoGiveWeapen.Length;
