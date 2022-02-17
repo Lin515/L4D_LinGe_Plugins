@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.12",
+	version = "2.13",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -590,7 +590,7 @@ public Action Event_player_death(Event event, const char[] name, bool dontBroadc
 public Action Timer_RespawnPlayer(Handle timer, any client)
 {
 	g_deathCountDown[client]--;
-	if (!IsAllowRespawn(client))
+	if (!IsAllowRespawn(client, false))
 	{
 		if (IsValidClient(client) && GetClientTeam(client) == TEAM_SPECTATOR)
 			PrintHintText(client, "我的战场不在这里");
@@ -995,9 +995,11 @@ stock int GetDeathHumanSurvivors()
 // 是否符合复活条件：必须是已阵亡的真人生还者玩家
 bool IsAllowRespawn(int client, bool checkCountDown=true)
 {
-	if (!IsValidClient(client)) // 必须在游戏中
+	if (client < 1 || client > MaxClients)
 		return false;
 	if (checkCountDown && g_deathCountDown[client] > 0)
+		return false;
+	if (!IsClientInGame(client)) // 必须在游戏中
 		return false;
 	if (IsFakeClient(client)) // 必须是真人玩家
 		return false;
