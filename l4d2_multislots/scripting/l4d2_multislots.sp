@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.13",
+	version = "2.14",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -31,6 +31,7 @@ ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 ConVar cv_respawnLimit;
+ConVar cv_respawnHealth;
 // 玩家死亡时，进行倒计时，倒计时完毕可以自主复活
 int g_deathCountDown[MAXPLAYERS+1];
 
@@ -72,6 +73,7 @@ public void OnPluginStart()
 	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
 	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
+	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？", FCVAR_SERVER_CAN_EXECUTE, true, 1.0);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -147,7 +149,7 @@ public void OnConfigsExecuted()
 
 public Action Cmd_forceaddbot(int client, int agrs)
 {
-	if (AddBot(true) == 0 && client>0)
+	if (0 != client && AddBot(true) == 0)
 		PrintToChat(client, "\x04已强制添加一个BOT");
 	return Plugin_Handled;
 }
@@ -611,21 +613,33 @@ public Action Timer_RespawnPlayer(Handle timer, any client)
 void RevivePlayer(int client, bool teleport=true)
 {
 	L4D2_VScriptWrapper_ReviveByDefib(client);
+	if (!IsAlive(client))
+	{
+		char name[MAX_NAME_LENGTH];
+		GetClientName(client, name, sizeof(name));
+		LogError("未能成功电击复活玩家 client:%d name:%s, 玩家将在出生点复活", client, name);
+
+		if (!teleport)
+			PrintToChat(client, "\x04在死亡处电击复活失败，你将传送到队友身边");
+		L4D_RespawnPlayer(client);
+		teleport = true;
+	}
 	GivePlayerSupply(client);
+	SetHealth(client, cv_respawnHealth.IntValue);
 	if (teleport)
 		TeleportToAliveSurvivor(client);
 }
+
 // 监测F1/F2
 public Action Command_Vote(int client, const char[] command, int args)
 {
-	if (!IsAllowRespawn(client))
-		return Plugin_Continue;
-
-	char sArg[8];
-	GetCmdArg(1, sArg, sizeof(sArg));
-	if (strcmp(sArg, "Yes", false) == 0 || strcmp(sArg, "No", false) == 0 )
-		RevivePlayer(client, strcmp(sArg, "No", false) == 0);
-
+	if (IsAllowRespawn(client))
+	{
+		char sArg[8];
+		GetCmdArg(1, sArg, sizeof(sArg));
+		if (strcmp(sArg, "Yes", false) == 0 || strcmp(sArg, "No", false) == 0 )
+			RevivePlayer(client, strcmp(sArg, "No", false) == 0);
+	}
 	return Plugin_Continue;
 }
 public Action Cmd_re1(int client, int args)
@@ -861,8 +875,8 @@ void RespawnTeleportGiveSupply(int client)
 	// 如果已经有人离开安全区，则传送并给予物资
 	if (L4D_HasAnySurvivorLeftSafeArea())
 	{
-		TeleportToAliveSurvivor(client);
 		GivePlayerSupply(client);
+		TeleportToAliveSurvivor(client);
 	}
 }
 
