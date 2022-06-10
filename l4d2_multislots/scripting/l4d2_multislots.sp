@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.14",
+	version = "2.15",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -73,7 +73,7 @@ public void OnPluginStart()
 	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
 	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
 	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
-	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？", FCVAR_SERVER_CAN_EXECUTE, true, 1.0);
+	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？设置为正数则为实血，负数则为虚血。血量最少为1，若设置小于1仍视为1。", FCVAR_SERVER_CAN_EXECUTE);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -615,10 +615,6 @@ void RevivePlayer(int client, bool teleport=true)
 	L4D2_VScriptWrapper_ReviveByDefib(client);
 	if (!IsAlive(client))
 	{
-		char name[MAX_NAME_LENGTH];
-		GetClientName(client, name, sizeof(name));
-		LogError("未能成功电击复活玩家 client:%d name:%s, 玩家将在出生点复活", client, name);
-
 		if (!teleport)
 			PrintToChat(client, "\x04在死亡处电击复活失败，你将传送到队友身边");
 		L4D_RespawnPlayer(client);
