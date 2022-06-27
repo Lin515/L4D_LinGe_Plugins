@@ -37,8 +37,8 @@ public void OnPluginStart()
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 	cv_allowHibernate = FindConVar("sv_hibernate_when_empty");
 
-	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
+	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", _, true, 0.0, true, 1.0);
+	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", _, true, 0.0, true, 1.0);
 }
 
 public void OnMapStart()

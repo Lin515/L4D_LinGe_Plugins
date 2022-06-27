@@ -62,18 +62,18 @@ public void OnPluginStart()
 {
 	cv_l4dSurvivorLimit	= FindConVar("survivor_limit");
 	cv_svmaxplayers		= FindConVar("sv_maxplayers");
-	cv_survivorLimit	= CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", FCVAR_SERVER_CAN_EXECUTE, true, 1.0, true, 32.0);
-	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数。不允许插件控制人数时本参数无效。", FCVAR_SERVER_CAN_EXECUTE, true, 1.0, true, 32.0);
-	cv_autoGive			= CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 1.0);
-	cv_autoSupply		= CreateConVar("l4d2_multislots_auto_supply", "1", "根据人数自动设置物资倍数 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", FCVAR_SERVER_CAN_EXECUTE, true, -1.0, true, 1.0);
-	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？0:不允许 1:允许且允许其它方式修改最大人数 2:只允许本插件控制最大人数", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
-	cv_autoJoin			= CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_onlySafeAddBot	= CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 1.0);
-	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", FCVAR_SERVER_CAN_EXECUTE, true, 0.0, true, 2.0);
-	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
-	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", FCVAR_SERVER_CAN_EXECUTE, true, 0.0);
-	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？设置为正数则为实血，负数则为虚血。血量最少为1，若设置小于1仍视为1。", FCVAR_SERVER_CAN_EXECUTE);
+	cv_survivorLimit	= CreateConVar("l4d2_multislots_survivor_limit", "4", "生还者初始数量（添加多了服务器会爆卡喔，要是满了32个会刷不出特感）", _, true, 1.0, true, 32.0);
+	cv_maxs				= CreateConVar("l4d2_multislots_maxs", "8", "服务器默认最大人数。不允许插件控制人数时本参数无效。", _, true, 1.0, true, 32.0);
+	cv_autoGive			= CreateConVar("l4d2_multislots_auto_give", "1", "自动给予离开安全区以后新出生的生还者武器与物品 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", _, true, -1.0, true, 1.0);
+	cv_autoSupply		= CreateConVar("l4d2_multislots_auto_supply", "1", "根据人数自动设置物资倍数 -1:完全禁用(游戏中也无法使用指令开启) 0:关闭 1:开启", _, true, -1.0, true, 1.0);
+	cv_allowSset		= CreateConVar("l4d2_multislots_allow_sset", "1", "允许插件控制服务器最大人数？0:不允许 1:允许且允许其它方式修改最大人数 2:只允许本插件控制最大人数", _, true, 0.0, true, 2.0);
+	cv_autoJoin			= CreateConVar("l4d2_multislots_auto_join", "1", "玩家连接完毕后是否自动使其加入游戏", _, true, 0.0, true, 1.0);
+	cv_onlySafeAddBot	= CreateConVar("l4d2_multislots_onlysafe_addbot", "0", "只允许在安全区内增加BOT", _, true, 0.0, true, 1.0);
+	cv_autoKickBot		= CreateConVar("l4d2_multislots_auto_kickbot", "1", "当前回合结束是否自动踢出多余BOT", _, true, 0.0, true, 1.0);
+	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", _, true, 0.0, true, 2.0);
+	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", _, true, 0.0);
+	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", _, true, 0.0);
+	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？", _);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -144,7 +144,7 @@ public void OnConfigsExecuted()
 
 	if (cv_allowSset.IntValue > 0 && null != cv_svmaxplayers)
 		cv_svmaxplayers.IntValue = cv_maxs.IntValue;
-	g_isOnVersus = (GetBaseMode() == OnVersus);
+	g_isOnVersus = IsOnVersus();
 }
 
 public Action Cmd_forceaddbot(int client, int agrs)
@@ -560,7 +560,7 @@ public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 			// 踢走游戏自己创建的多余bot
 			KickAllBot();
 		}
-		else if (GetClientTeam(client) == TEAM_SPECTATOR 
+		else if (GetClientTeam(client) == TEAM_SPECTATOR
 			&& g_autoJoin[client] && cv_autoJoin.IntValue==1)
 		{
 			JoinSurvivor(client);
@@ -862,7 +862,7 @@ int AddBot(bool force=false)
 	}
 }
 
-// 复活传送并给予物品 
+// 复活传送并给予物品
 void RespawnTeleportGiveSupply(int client)
 {
 	// 如果client是死亡的则复活它
