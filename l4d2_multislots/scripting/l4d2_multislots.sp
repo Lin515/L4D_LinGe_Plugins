@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.15",
+	version = "2.16",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -553,10 +553,11 @@ public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 	// 过早的使玩家复活或加入存活的BOT，会导致开局生还者数量错误
 	if (g_allHumanInGame && IsClientInGame(client))
 	{
-		// 如果加入到了死亡的bot中，则将其复活
-		if (GetClientTeam(client) == TEAM_SURVIVOR && !IsAlive(client))
+		// 如果玩家数少于4人，则玩家可能自动会加入到生还者
+		if (GetClientTeam(client) == TEAM_SURVIVOR)
 		{
-			RespawnTeleportGiveSupply(client);
+			if (!IsAlive(client))
+				RespawnTeleportGiveSupply(client);
 			// 踢走游戏自己创建的多余bot
 			KickAllBot();
 		}
