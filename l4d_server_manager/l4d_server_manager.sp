@@ -8,7 +8,7 @@ public Plugin myinfo = {
 	name = "[L4D] LinGe Server Manager",
 	author = "LinGe",
 	description = "求生之路 简单管理服务器",
-	version = "0.1",
+	version = "0.2",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -18,6 +18,8 @@ ConVar cv_allowBotGame;
 ConVar cv_allowHibernate;
 ConVar cv_autoLobby;
 ConVar cv_autoHibernate;
+ConVar cv_exclusive;
+ConVar cv_exclusiveLock;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -36,9 +38,20 @@ public void OnPluginStart()
 	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 	cv_allowHibernate = FindConVar("sv_hibernate_when_empty");
+	cv_exclusive = FindConVar("sv_steamgroup_exclusive");
 
 	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", _, true, 0.0, true, 1.0);
 	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", _, true, 0.0, true, 1.0);
+	cv_exclusiveLock = CreateConVar("sv_steamgroup_exclusive_lock", "-1", "当该值>=0时，sv_steamgroup_exclusive 将被锁定为这个变量的值", _, true, -1.0, true, 1.0);
+
+	cv_exclusive.AddChangeHook(OnExclusiveChanged);
+	cv_exclusiveLock.AddChangeHook(OnExclusiveChanged);
+}
+
+public void OnExclusiveChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (cv_exclusiveLock.IntValue >= 0 && cv_exclusiveLock.IntValue != cv_exclusive.IntValue)
+		cv_exclusive.SetInt(cv_exclusiveLock.IntValue);
 }
 
 public void OnMapStart()
