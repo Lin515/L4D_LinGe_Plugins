@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.16",
+	version = "2.17",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -558,8 +558,6 @@ public Action Timer_AutoJoinSurvivor(Handle timer, any client)
 		{
 			if (!IsAlive(client))
 				RespawnTeleportGiveSupply(client);
-			// 踢走游戏自己创建的多余bot
-			KickAllBot();
 		}
 		else if (GetClientTeam(client) == TEAM_SPECTATOR
 			&& g_autoJoin[client] && cv_autoJoin.IntValue==1)
