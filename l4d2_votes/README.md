@@ -6,7 +6,7 @@
 
 **支持游戏：求生之路2**  
 **建议插件平台：SourceMod 1.10.0**  
-**依赖：[builtinvotes](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/builtinvotes)**
+**依赖：[builtinvotes](https://github.com/A1mDev/builtinvotes)**
 
 ## 服务器指令
 

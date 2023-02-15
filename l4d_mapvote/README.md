@@ -6,7 +6,7 @@
 
 **支持游戏：求生之路1&2**（实际上游戏1代我没测试过，应该也是支持的）  
 **建议插件平台：SourceMod 1.10.0**  
-**依赖：[builtinvotes](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/依赖的扩展与插件/builtinvotes)** 如果你不使用游戏内置投票则可以不安装这个扩展。
+**依赖：[builtinvotes](https://github.com/A1mDev/builtinvotes)** 如果你不使用游戏内置投票则可以不安装这个扩展。
 
 ## 指令与功能
 

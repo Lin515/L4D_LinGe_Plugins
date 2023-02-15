@@ -7,7 +7,7 @@
 
 **支持游戏：求生之路2**  
 **建议插件平台：SourceMod 1.10.0**  
-**依赖：[left4dhooks&dhooks](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/%E4%BE%9D%E8%B5%96%E7%9A%84%E6%89%A9%E5%B1%95%E4%B8%8E%E6%8F%92%E4%BB%B6/left4dhooks%26dhooks) [LinGe_Library](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/LinGe_Library)**
+**依赖：[left4dhooks&dhooks](https://forums.alliedmods.net/showthread.php?t=321696) [LinGe_Library](https://github.com/LinGe515/L4D_LinGe_Plugins/tree/main/LinGe_Library)**
 
 ## 功能说明
 
@@ -61,4 +61,4 @@ sm_autogive rifle
 ```
 
 注意，插件不会对你设置的物资代码做任何检查，你应该自己确认物资代码有效性和合法性。  
-物资代码请查看[物品代码.txt](https://github.com/LinGe515/L4D_LinGe_Plugins/blob/main/l4d2_multislots/物品代码.txt)。
+物资代码请查看[物品代码.txt](物品代码.txt)。
