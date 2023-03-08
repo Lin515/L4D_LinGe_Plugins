@@ -11,7 +11,7 @@ public Plugin myinfo = {
 	name = "多人控制",
 	author = "LinGe",
 	description = "L4D2多人控制",
-	version = "2.17",
+	version = "2.18",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -31,6 +31,7 @@ ConVar cv_autoKickBot;
 ConVar cv_tpPermission;
 ConVar cv_tpLimit;
 ConVar cv_respawnLimit;
+int g_respawnLimit;
 ConVar cv_respawnHealth;
 // 玩家死亡时，进行倒计时，倒计时完毕可以自主复活
 int g_deathCountDown[MAXPLAYERS+1];
@@ -73,7 +74,7 @@ public void OnPluginStart()
 	cv_tpPermission		= CreateConVar("l4d2_multislots_tp_permission", "2", "哪些人可以使用传送指令？0:完全禁用 1:仅管理员可用 2:所有人可用", _, true, 0.0, true, 2.0);
 	cv_tpLimit			= CreateConVar("l4d2_multislots_tp_limit", "0", "限制玩家使用传送指令的时间间隔，单位为秒", _, true, 0.0);
 	cv_respawnLimit		= CreateConVar("l4d2_multislots_respawn_limit", "30", "玩家死亡后多少秒可以选择自主复活？若设置为0则禁用复活。", _, true, 0.0);
-	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？", _);
+	cv_respawnHealth	= CreateConVar("l4d2_multislots_respawn_health", "100", "玩家复活后拥有多少血量？", _, true, 1.0, true, 100.0);
 	cv_l4dSurvivorLimit.SetBounds(ConVarBound_Upper, true, 32.0);
 	cv_l4dSurvivorLimit.AddChangeHook(SurvivorLimitChanged);
 	cv_survivorLimit.AddChangeHook(SurvivorLimitChanged);
@@ -89,6 +90,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_sset", Cmd_sset, ADMFLAG_ROOT, "设置服务器最大人数");
 	RegAdminCmd("sm_mmn", Cmd_mmn, ADMFLAG_ROOT, "自动多倍物资设置");
 	RegAdminCmd("sm_autogive", Cmd_autogive, ADMFLAG_ROOT, "自动给予物品设置");
+	RegAdminCmd("sm_respawn", Cmd_respawn, ADMFLAG_ROOT, "设置 respawn_limit");
 
 	AddCommandListener(Command_Jointeam, "jointeam");
 	AddCommandListener(Command_Vote, "Vote");
@@ -110,6 +112,7 @@ public void OnPluginStart()
 	HookEvent("round_end", Event_round_end, EventHookMode_Pre);
 	HookEvent("player_team", Event_player_team, EventHookMode_Post);
 	HookEvent("player_death", Event_player_death, EventHookMode_PostNoCopy);
+	HookEvent("defibrillator_used", Event_defibrillator_used, EventHookMode_Post);
 
 	g_supply = CreateArray(40);
 	g_autoGiveWeapen = CreateArray(40);
@@ -131,6 +134,7 @@ public void OnMapStart()
 	g_maxs = cv_maxs.IntValue;
 	g_autoGive = cv_autoGive.IntValue;
 	g_autoSupply = cv_autoSupply.IntValue;
+	g_respawnLimit = cv_respawnLimit.IntValue;
 }
 public void OnConfigsExecuted()
 {
@@ -139,6 +143,7 @@ public void OnConfigsExecuted()
 		cv_maxs.IntValue = g_maxs;
 		cv_autoGive.IntValue = g_autoGive;
 		cv_autoSupply.IntValue	= g_autoSupply;
+		cv_respawnLimit.IntValue = g_respawnLimit;
 	}
 	g_hasMapTransitioned = false;
 
@@ -442,6 +447,20 @@ public Action Cmd_autogive(int client, int args)
 	return Plugin_Handled;
 }
 
+public Action Cmd_respawn(int client, int args)
+{
+	if (1 == args)
+	{
+		cv_respawnLimit.SetInt(GetCmdArgInt(1));
+	}
+
+	if (cv_respawnLimit.IntValue > 0)
+		PrintToChatAll("\x04死亡 \x03%d \x04秒后可以自主复活", cv_respawnLimit.IntValue);
+	else
+		PrintToChatAll("\x04自主复活\x03 已关闭");
+	return Plugin_Handled;
+}
+
 public void AutoMultipleChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	SetMultiple();
@@ -523,6 +542,18 @@ public Action Event_round_end(Event event, const char[] name, bool dontBroadcast
 		KickAllBot(false);
 }
 
+public Action Event_defibrillator_used(Event event, const char[] name, bool dontBroadcast)
+{
+	if (!event)
+		return Plugin_Continue;
+	if (cv_respawnLimit.IntValue == 0 || cv_respawnHealth.IntValue <= 50)
+		return Plugin_Continue;
+
+	int client = GetClientOfUserId(event.GetInt("subject"));
+	SetEntProp(client, Prop_Send, "m_iHealth", cv_respawnHealth.IntValue);
+	return Plugin_Continue;
+}
+
 public Action Event_player_team(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
@@ -578,6 +609,8 @@ public Action Event_player_death(Event event, const char[] name, bool dontBroadc
 {
 	if (cv_respawnLimit.IntValue == 0)
 		return Plugin_Continue;
+	if (!event)
+		return Plugin_Continue;
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (!IsAllowRespawn(client, false))
 		return Plugin_Continue;
@@ -615,7 +648,7 @@ void RevivePlayer(int client, bool teleport=true)
 	if (!IsAlive(client))
 	{
 		if (!teleport)
-			PrintToChat(client, "\x04在死亡处电击复活失败，你将传送到队友身边");
+			PrintToChat(client, "\x04在死亡处复活失败，你将传送到队友身边");
 		L4D_RespawnPlayer(client);
 		teleport = true;
 	}
