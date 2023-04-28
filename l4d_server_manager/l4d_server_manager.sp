@@ -2,24 +2,28 @@
 #include <sourcemod>
 #include <sdktools>
 #include <left4dhooks>
+#include <LinGe_Function>
 
 // 这个插件主要是自用 就懒得说太多具体作用了
 public Plugin myinfo = {
 	name = "[L4D] LinGe Server Manager",
 	author = "LinGe",
 	description = "求生之路 简单管理服务器",
-	version = "0.2",
+	version = "0.3",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
 ConVar cv_hostingLobby;
-ConVar cv_allowLobby;
+ConVar cv_onlyLobby;
 ConVar cv_allowBotGame;
 ConVar cv_allowHibernate;
 ConVar cv_autoLobby;
 ConVar cv_autoHibernate;
 ConVar cv_exclusive;
 ConVar cv_exclusiveLock;
+ConVar cv_autoCrash;
+ConVar cv_cheats;
+int g_crashCountDown = 0;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -35,14 +39,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	cv_hostingLobby = FindConVar("sv_hosting_lobby");
-	cv_allowLobby = FindConVar("sv_allow_lobby_connect_only");
+	cv_onlyLobby = FindConVar("sv_allow_lobby_connect_only");
 	cv_allowBotGame = FindConVar("sb_all_bot_game");
 	cv_allowHibernate = FindConVar("sv_hibernate_when_empty");
 	cv_exclusive = FindConVar("sv_steamgroup_exclusive");
+	cv_cheats = FindConVar("sv_cheats");
 
 	cv_autoLobby = CreateConVar("l4d_server_manager_auto_lobby", "1", "自动管理服务器大厅（第一个人连入时使其创建大厅，然后再将大厅移除）", _, true, 0.0, true, 1.0);
 	cv_autoHibernate = CreateConVar("l4d_server_manager_auto_hibernate", "1", "自动管理服务器休眠", _, true, 0.0, true, 1.0);
 	cv_exclusiveLock = CreateConVar("sv_steamgroup_exclusive_lock", "-1", "当该值>=0时，sv_steamgroup_exclusive 将被锁定为这个变量的值", _, true, -1.0, true, 1.0);
+	cv_autoCrash = CreateConVar("l4d_auto_crash", "0", "当服务器不存在真人玩家多少秒后，自动将服务器Crash重启，若为0则不自动重启。(仅可用于Linux服务端，Windows服务端Crash后需要手动启动)", _, true, 0.0);
 
 	cv_exclusive.AddChangeHook(OnExclusiveChanged);
 	cv_exclusiveLock.AddChangeHook(OnExclusiveChanged);
@@ -51,12 +57,23 @@ public void OnPluginStart()
 public void OnExclusiveChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	if (cv_exclusiveLock.IntValue >= 0 && cv_exclusiveLock.IntValue != cv_exclusive.IntValue)
-		cv_exclusive.SetInt(cv_exclusiveLock.IntValue);
+		cv_exclusive.IntValue = cv_exclusiveLock.IntValue;
 }
 
 public void OnMapStart()
 {
-	CheckHasHuman();
+	if (GetHumans(true) == 0)
+	{
+		if (cv_autoLobby.IntValue == 1)
+		{
+			cv_onlyLobby.IntValue = 1;
+		}
+		if (cv_autoHibernate.IntValue == 1 && g_crashCountDown == 0)
+		{
+			cv_allowBotGame.IntValue = 0;
+			cv_allowHibernate.IntValue = 1;
+		}
+	}
 }
 
 public bool OnClientConnect(int client)
@@ -64,7 +81,7 @@ public bool OnClientConnect(int client)
 	if (!IsFakeClient(client))
 	{
 		if (cv_autoLobby.IntValue == 1)
-			cv_allowLobby.SetInt(0);
+			cv_onlyLobby.SetInt(0);
 	}
 	return true;
 }
@@ -75,8 +92,8 @@ public void OnClientPutInServer(int client)
 		return;
 	if (cv_autoLobby.IntValue == 1 && cv_hostingLobby.IntValue == 1)
 		L4D_LobbyUnreserve();
-	if (cv_autoHibernate.IntValue == 1)
-		cv_allowBotGame.SetInt(1);
+	if ((cv_autoHibernate.IntValue == 1 || cv_autoCrash.IntValue > 0) && cv_allowBotGame.IntValue == 0)
+		cv_allowBotGame.IntValue = 1;
 }
 
 public void OnClientDisconnect(int client)
@@ -85,41 +102,45 @@ public void OnClientDisconnect(int client)
 		return;
 	CreateTimer(1.0, Timer_CheckHasHuman);
 }
-public Action Timer_CheckHasHuman(Handle timer)
-{
-	CheckHasHuman();
-}
 
-void CheckHasHuman()
+public Action Timer_CheckHasHuman(Handle timer)
 {
 	if (GetHumans(true) == 0)
 	{
-		if (cv_autoLobby.IntValue == 1)
+		if (cv_autoCrash.IntValue > 0)
 		{
-			cv_allowLobby.SetInt(1);
+			if (0 == g_crashCountDown)
+			{
+				g_crashCountDown = cv_autoCrash.IntValue;
+				CreateTimer(1.0, Timer_AutoCrash, 0, TIMER_REPEAT);
+			}
 		}
-
-		if (cv_autoHibernate.IntValue == 1)
+		else if (cv_autoHibernate.IntValue == 1)
 		{
-			cv_allowBotGame.SetInt(0);
-			cv_allowHibernate.SetInt(1);
+			if (cv_autoLobby.IntValue == 1)
+			{
+				cv_onlyLobby.IntValue = 1;
+			}
+			cv_allowBotGame.IntValue = 0;
+			cv_allowHibernate.IntValue = 1;
 		}
 	}
 }
 
-// 当前在线的全部真实玩家数
-stock int GetHumans(bool noNeedInGame=false)
+public Action Timer_AutoCrash(Handle timer, any data)
 {
-	int num = 0;
-	for (int i=1; i<=MaxClients; i++)
+	g_crashCountDown--;
+	if (GetHumans(true) > 0)
 	{
-		if (IsClientConnected(i) && !IsFakeClient(i))
-		{
-			if (IsClientInGame(i) || noNeedInGame)
-			{
-				num++;
-			}
-		}
+		g_crashCountDown = 0;
+		return Plugin_Stop;
 	}
-	return num;
+	if (g_crashCountDown <= 0)
+	{
+		g_crashCountDown = 0;
+		cv_cheats.IntValue = 1;
+		ServerCommand("sv_crash");
+		return Plugin_Stop;
+	}
+	return Plugin_Continue;
 }

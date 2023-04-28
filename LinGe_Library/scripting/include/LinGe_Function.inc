@@ -171,7 +171,7 @@ stock bool IsPluginRunning(const char[] name)
 	PluginStatus status;
 	char buffer[260];
 	bool ret = false;
-	
+
 	while (MorePlugins(iter))
 	{
 		plugin = ReadPlugin(iter);
@@ -201,7 +201,7 @@ stock bool IsPluginLoaded(const char[] name, bool allowRunning=true)
 	PluginStatus status;
 	char buffer[260];
 	bool ret = false;
-	
+
 	while (MorePlugins(iter))
 	{
 		plugin = ReadPlugin(iter);
@@ -357,7 +357,7 @@ stock int GetHumans(bool noNeedInGame=false)
 #define TEAM_INFECTED	3
 /**
  * 获得指定类型的玩家数量
- * 
+ *
  * @param team      玩家队伍，若为TEAM_UNKNOWN则不检查队伍
  * @param bot       是否可以是BOT
  * @param alive     是否必须是存活状态
