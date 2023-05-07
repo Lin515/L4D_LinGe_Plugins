@@ -9,7 +9,7 @@ public Plugin myinfo = {
 	name = "[L4D] LinGe Server Manager",
 	author = "LinGe",
 	description = "求生之路 简单管理服务器",
-	version = "0.3",
+	version = "0.4",
 	url = "https://github.com/Lin515/L4D_LinGe_Plugins"
 };
 
@@ -81,19 +81,15 @@ public bool OnClientConnect(int client)
 	if (!IsFakeClient(client))
 	{
 		if (cv_autoLobby.IntValue == 1)
+		{
 			cv_onlyLobby.SetInt(0);
+			if (cv_hostingLobby.IntValue == 1)
+				L4D_LobbyUnreserve();
+		}
+		if ((cv_autoHibernate.IntValue == 1 || cv_autoCrash.IntValue > 0) && cv_allowBotGame.IntValue == 0)
+			cv_allowBotGame.IntValue = 1;
 	}
 	return true;
-}
-
-public void OnClientPutInServer(int client)
-{
-	if (IsFakeClient(client))
-		return;
-	if (cv_autoLobby.IntValue == 1 && cv_hostingLobby.IntValue == 1)
-		L4D_LobbyUnreserve();
-	if ((cv_autoHibernate.IntValue == 1 || cv_autoCrash.IntValue > 0) && cv_allowBotGame.IntValue == 0)
-		cv_allowBotGame.IntValue = 1;
 }
 
 public void OnClientDisconnect(int client)
